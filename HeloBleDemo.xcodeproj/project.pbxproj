@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CC97B5042BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC97B5032BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift */; };
 		CCE412472BC510E60082F84F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE412462BC510E60082F84F /* AppDelegate.swift */; };
 		CCE412502BC510EA0082F84F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCE4124F2BC510EA0082F84F /* Assets.xcassets */; };
 		CCE412532BC510EA0082F84F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CCE412512BC510EA0082F84F /* LaunchScreen.storyboard */; };
@@ -17,6 +18,7 @@
 /* Begin PBXFileReference section */
 		11D720281ADAD1C6B0A93984 /* Pods-HeloBleDemo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HeloBleDemo.release.xcconfig"; path = "Target Support Files/Pods-HeloBleDemo/Pods-HeloBleDemo.release.xcconfig"; sourceTree = "<group>"; };
 		82D311C8B9DCA8B9B6197CD2 /* Pods-HeloBleDemo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HeloBleDemo.debug.xcconfig"; path = "Target Support Files/Pods-HeloBleDemo/Pods-HeloBleDemo.debug.xcconfig"; sourceTree = "<group>"; };
+		CC97B5032BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleDeviceCollectionViewCell.swift; sourceTree = "<group>"; };
 		CCE412432BC510E60082F84F /* HeloBleDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HeloBleDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCE412462BC510E60082F84F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CCE4124F2BC510EA0082F84F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -55,6 +57,29 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
+		CC97B5002BC93A1900DD0ABD /* controller */ = {
+			isa = PBXGroup;
+			children = (
+				CCE412602BC512B50082F84F /* HomeViewController.swift */,
+			);
+			path = controller;
+			sourceTree = "<group>";
+		};
+		CC97B5012BC93A2900DD0ABD /* view */ = {
+			isa = PBXGroup;
+			children = (
+				CC97B5032BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift */,
+			);
+			path = view;
+			sourceTree = "<group>";
+		};
+		CC97B5022BC93A3300DD0ABD /* mode */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = mode;
+			sourceTree = "<group>";
+		};
 		CCE4123A2BC510E60082F84F = {
 			isa = PBXGroup;
 			children = (
@@ -77,7 +102,9 @@
 			isa = PBXGroup;
 			children = (
 				CCE412462BC510E60082F84F /* AppDelegate.swift */,
-				CCE412602BC512B50082F84F /* HomeViewController.swift */,
+				CC97B5022BC93A3300DD0ABD /* mode */,
+				CC97B5012BC93A2900DD0ABD /* view */,
+				CC97B5002BC93A1900DD0ABD /* controller */,
 				CCE4124F2BC510EA0082F84F /* Assets.xcassets */,
 				CCE412512BC510EA0082F84F /* LaunchScreen.storyboard */,
 				CCE412542BC510EA0082F84F /* Info.plist */,
@@ -200,6 +227,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CCE412472BC510E60082F84F /* AppDelegate.swift in Sources */,
+				CC97B5042BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift in Sources */,
 				CCE412612BC512B60082F84F /* HomeViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

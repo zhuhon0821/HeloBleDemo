@@ -2,17 +2,20 @@ PODS:
   - GRDB.swift (6.24.1):
     - GRDB.swift/standard (= 6.24.1)
   - GRDB.swift/standard (6.24.1)
-  - HeloBleLib (1.0.1):
+  - HeloBleLib (1.0.3):
     - GRDB.swift
     - SwiftProtobuf
+  - SnapKit (5.7.1)
   - SwiftProtobuf (1.26.0)
 
 DEPENDENCIES:
   - HeloBleLib (from `https://github.com/zhuhon0821/HeloBleLib.git`)
+  - SnapKit
 
 SPEC REPOS:
   trunk:
     - GRDB.swift
+    - SnapKit
     - SwiftProtobuf
 
 EXTERNAL SOURCES:
@@ -21,14 +24,15 @@ EXTERNAL SOURCES:
 
 CHECKOUT OPTIONS:
   HeloBleLib:
-    :commit: 02dd11ca9a5cf33d6e303649bbcfeb56ec2927e8
+    :commit: 848240f06d3eeb20b1ccbf75f654923fe46b2b47
     :git: https://github.com/zhuhon0821/HeloBleLib.git
 
 SPEC CHECKSUMS:
   GRDB.swift: 136dcb5d8dddca50aae3ba7d77475f79e7232cd8
-  HeloBleLib: ca72fda7d7bf005cdba79610742374934687bf84
+  HeloBleLib: dce44f4e9a589fd39e1dd42c4937fcc7e90157d6
+  SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
   SwiftProtobuf: 5e8349171e7c2f88f5b9e683cb3cb79d1dc780b3
 
-PODFILE CHECKSUM: 0e3fa3e2ba11fa45d80be76cfd7aeb4ddabf7c9b
+PODFILE CHECKSUM: a4406810386989948effe669b971372b1e717107
 
 COCOAPODS: 1.15.2
