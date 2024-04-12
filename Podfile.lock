@@ -1,0 +1,34 @@
+PODS:
+  - GRDB.swift (6.24.1):
+    - GRDB.swift/standard (= 6.24.1)
+  - GRDB.swift/standard (6.24.1)
+  - HeloBleLib (1.0.1):
+    - GRDB.swift
+    - SwiftProtobuf
+  - SwiftProtobuf (1.26.0)
+
+DEPENDENCIES:
+  - HeloBleLib (from `https://github.com/zhuhon0821/HeloBleLib.git`)
+
+SPEC REPOS:
+  trunk:
+    - GRDB.swift
+    - SwiftProtobuf
+
+EXTERNAL SOURCES:
+  HeloBleLib:
+    :git: https://github.com/zhuhon0821/HeloBleLib.git
+
+CHECKOUT OPTIONS:
+  HeloBleLib:
+    :commit: 02dd11ca9a5cf33d6e303649bbcfeb56ec2927e8
+    :git: https://github.com/zhuhon0821/HeloBleLib.git
+
+SPEC CHECKSUMS:
+  GRDB.swift: 136dcb5d8dddca50aae3ba7d77475f79e7232cd8
+  HeloBleLib: ca72fda7d7bf005cdba79610742374934687bf84
+  SwiftProtobuf: 5e8349171e7c2f88f5b9e683cb3cb79d1dc780b3
+
+PODFILE CHECKSUM: 0e3fa3e2ba11fa45d80be76cfd7aeb4ddabf7c9b
+
+COCOAPODS: 1.15.2
