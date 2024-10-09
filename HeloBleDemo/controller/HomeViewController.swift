@@ -61,13 +61,18 @@ extension HomeViewController {
     func didDiscoverDevice(peripheral: CBPeripheral) {
         if !self.devices.contains(peripheral) && peripheral.name?.count ?? 0 > 0 {
             print(peripheral)
-            self.devices.append(peripheral)
-            self.homeCollectionView.reloadData()
+            if let name = peripheral.name {
+                if name.hasPrefix("BIOSENSE-") {
+                    self.devices.append(peripheral)
+                    self.homeCollectionView.reloadData()
+                }
+            }
         }
     }
     
     func didConnectedDeviceSuccess(peripheral: CBPeripheral) {
         print("didConnectedDeviceSuccess")
+        
     }
     
     func didConnectedDeviceFailed(peripheral: CBPeripheral) {
@@ -94,5 +99,6 @@ extension HomeViewController {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let p = self.devices[indexPath.item]
         BleManager.sharedInstance.connectBleDevice(peripheral: p)
+        BleManager.sharedInstance.stopScanBleDevice()
     }
 }

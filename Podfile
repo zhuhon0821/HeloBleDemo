@@ -8,4 +8,6 @@ target 'HeloBleDemo' do
   # Pods for HeloBleDemo
   pod 'HeloBleLib',:git => 'https://github.com/zhuhon0821/HeloBleLib.git'
   pod 'SnapKit'
+  pod 'Alamofire'
+  
 end

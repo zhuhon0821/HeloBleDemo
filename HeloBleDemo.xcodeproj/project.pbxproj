@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CC80D6992BCCC5CA00AEEF74 /* dataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC80D6982BCCC5CA00AEEF74 /* dataModel.swift */; };
 		CC97B5042BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC97B5032BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift */; };
 		CCE412472BC510E60082F84F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE412462BC510E60082F84F /* AppDelegate.swift */; };
 		CCE412502BC510EA0082F84F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCE4124F2BC510EA0082F84F /* Assets.xcassets */; };
@@ -18,6 +19,7 @@
 /* Begin PBXFileReference section */
 		11D720281ADAD1C6B0A93984 /* Pods-HeloBleDemo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HeloBleDemo.release.xcconfig"; path = "Target Support Files/Pods-HeloBleDemo/Pods-HeloBleDemo.release.xcconfig"; sourceTree = "<group>"; };
 		82D311C8B9DCA8B9B6197CD2 /* Pods-HeloBleDemo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HeloBleDemo.debug.xcconfig"; path = "Target Support Files/Pods-HeloBleDemo/Pods-HeloBleDemo.debug.xcconfig"; sourceTree = "<group>"; };
+		CC80D6982BCCC5CA00AEEF74 /* dataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = dataModel.swift; sourceTree = "<group>"; };
 		CC97B5032BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleDeviceCollectionViewCell.swift; sourceTree = "<group>"; };
 		CCE412432BC510E60082F84F /* HeloBleDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HeloBleDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCE412462BC510E60082F84F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -76,6 +78,7 @@
 		CC97B5022BC93A3300DD0ABD /* mode */ = {
 			isa = PBXGroup;
 			children = (
+				CC80D6982BCCC5CA00AEEF74 /* dataModel.swift */,
 			);
 			path = mode;
 			sourceTree = "<group>";
@@ -227,6 +230,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CCE412472BC510E60082F84F /* AppDelegate.swift in Sources */,
+				CC80D6992BCCC5CA00AEEF74 /* dataModel.swift in Sources */,
 				CC97B5042BC93A6600DD0ABD /* BleDeviceCollectionViewCell.swift in Sources */,
 				CCE412612BC512B60082F84F /* HomeViewController.swift in Sources */,
 			);

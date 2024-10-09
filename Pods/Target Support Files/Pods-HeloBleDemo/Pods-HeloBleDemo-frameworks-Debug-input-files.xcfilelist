@@ -1,4 +1,5 @@
 ${PODS_ROOT}/Target Support Files/Pods-HeloBleDemo/Pods-HeloBleDemo-frameworks.sh
+${BUILT_PRODUCTS_DIR}/Alamofire/Alamofire.framework
 ${BUILT_PRODUCTS_DIR}/GRDB.swift/GRDB.framework
 ${BUILT_PRODUCTS_DIR}/HeloBleLib/HeloBleLib.framework
 ${BUILT_PRODUCTS_DIR}/SnapKit/SnapKit.framework
