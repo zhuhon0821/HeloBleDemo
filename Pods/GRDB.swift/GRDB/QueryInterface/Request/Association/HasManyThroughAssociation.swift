@@ -1,66 +1,53 @@
-/// The `HasManyThroughAssociation` is often used to set up a many-to-many
+/// The **HasManyThrough** association is often used to set up a many-to-many
 /// connection with another record. This association indicates that the
 /// declaring record can be matched with zero or more instances of another
 /// record by proceeding through a third record.
 ///
-/// For example, consider the practice of passport delivery. One country
+/// For example, consider the practice of passport delivery. One coutry
 /// "has many" citizens "through" its passports:
 ///
-/// ```swift
-/// struct Citizen: TableRecord { }
+///     struct Country: TableRecord {
+///         static let passports = hasMany(Passport.self)
+///         static let citizens = hasMany(Citizen.self, through: passports, using: Passport.citizen)
+///         ...
+///     }
 ///
-/// struct Passport: TableRecord {
-///     static let citizen = belongsTo(Citizen.self)
-/// }
+///     struct Passport: TableRecord {
+///         static let citizen = belongsTo(Citizen.self)
+///         ...
+///     }
 ///
-/// struct Country: TableRecord {
-///     static let passports = hasMany(Passport.self)
-///     static let citizens = hasMany(Citizen.self,
-///                                   through: passports,
-///                                   using: Passport.citizen)
-/// }
-/// ```
+///     struct Citizen: TableRecord { ... }
 ///
-/// The `HasManyThroughAssociation` is also useful for setting up "shortcuts"
-/// through nested associations. For example, if a document has many sections,
-/// and a section has many paragraphs, you may sometimes want to get a simple
-/// collection of all paragraphs in the document. You could set
+/// The **HasManyThrough** association is also useful for setting up
+/// "shortcuts" through nested HasMany associations. For example, if a document
+/// has many sections, and a section has many paragraphs, you may sometimes want
+/// to get a simple collection of all paragraphs in the document. You could set
 /// that up this way:
 ///
-/// ```swift
-/// struct Paragraph: TableRecord { }
+///     struct Document: TableRecord {
+///         static let sections = hasMany(Section.self)
+///         static let paragraphs = hasMany(Paragraph.self, through: sections, using: Section.paragraphs)
+///     }
 ///
-/// struct Section: TableRecord {
-///     static let paragraphs = hasMany(Paragraph.self)
-/// }
+///     struct Section: TableRecord {
+///         static let paragraphs = hasMany(Paragraph.self)
+///     }
 ///
-/// struct Document: TableRecord {
-///     static let sections = hasMany(Section.self)
-///     static let paragraphs = hasMany(Paragraph.self,
-///                                     through: sections,
-///                                     using: Section.paragraphs)
-/// }
-/// ```
+///     struct Paragraph: TableRecord {
+///     }
 ///
-/// As in the examples above, `HasManyThroughAssociation` is always built from
-/// two other associations. Those associations can be any ``Association``.
-public struct HasManyThroughAssociation<Origin, Destination> {
-    public var _sqlAssociation: _SQLAssociation
-    
-    init<Pivot, Target>(
-        through pivot: Pivot,
-        using target: Target)
-    where Pivot: Association,
-          Target: Association,
-          Pivot.OriginRowDecoder == Origin,
-          Pivot.RowDecoder == Target.OriginRowDecoder,
-          Target.RowDecoder == Destination
-    {
-        _sqlAssociation = target._sqlAssociation.through(pivot._sqlAssociation)
-    }
-}
-
-extension HasManyThroughAssociation: AssociationToMany {
+/// As in the examples above, **HasManyThrough** association is always built from
+/// two other associations: the `through:` and `using:` arguments. Those
+/// associations can be any other association (BelongsTo, HasMany,
+/// HasManyThrough, etc).
+public struct HasManyThroughAssociation<Origin, Destination>: AssociationToMany {
+    /// :nodoc:
     public typealias OriginRowDecoder = Origin
+    
+    /// :nodoc:
     public typealias RowDecoder = Destination
+    
+    /// :nodoc:
+    public var _sqlAssociation: _SQLAssociation
 }

@@ -1,60 +1,7 @@
-/// An SQL expression.
-///
-/// `SQLExpression` is an opaque representation of an SQL expression.
-/// You generally build `SQLExpression` from other expressions. For example:
-///
-/// ```swift
-/// // Values
-/// 1000.sqlExpression
-/// "O'Brien".sqlExpression
-///
-/// // Computed expressions
-/// Column("score") + Column("bonus")
-/// (0...1000).contains(Column("score"))
-/// !Column("isBlue")
-///
-/// // Literal expression
-/// SQL("IFNULL(name, \(defaultName))").sqlExpression
-///
-/// // Subquery
-/// Player.select(max(Column("score"))).sqlExpression
-/// ```
-///
-/// `SQLExpression` is better used as the return type of a function. For
-/// function arguments, prefer the ``SQLExpressible`` or
-/// ``SQLSpecificExpressible`` protocols. For example:
-///
-/// ```swift
-/// func date(_ value: some SQLSpecificExpressible) -> SQLExpression {
-///     SQL("DATE(\(value))").sqlExpression
-/// }
-///
-/// // SELECT * FROM "player" WHERE DATE("createdAt") = '2020-01-23'
-/// let request = Player.filter(date(Column("createdAt")) == "2020-01-23")
-/// ```
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_expr.html>
+/// SQLExpression is the type that represents an SQL expression, as
+/// described at <https://www.sqlite.org/lang_expr.html>
 public struct SQLExpression {
     private var impl: Impl
-    
-    /// The preferred interpretation of the expression in JSON
-    /// building contexts (see `jsonBuilderExpression`).
-    ///
-    /// ```swift
-    /// // Considering:
-    /// // JSON_ARRAY('[1, 2, 3]') → '["[1, 2, 3]"]'
-    /// // JSON_ARRAY(JSON('[1, 2, 3]')) → [[1,2,3]]
-    ///
-    /// // Compare an expression with preferredJSONInterpretation = .unspecified:
-    /// // JSON_ARRAY("info")
-    /// Database.jsonArray([Column("info")])
-    ///
-    /// // ...with an expression with preferredJSONInterpretation = .jsonValue:
-    /// // JSON_ARRAY(JSON("info"))
-    /// Database.jsonArray([Column("info").jsonValue])
-    /// Database.jsonArray([JSONColumn("info")])
-    /// ```
-    var preferredJSONInterpretation = JSONInterpretation.deferredToSQLite
     
     /// The private implementation of the public `SQLExpression`.
     private enum Impl {
@@ -165,14 +112,8 @@ public struct SQLExpression {
         ///
         ///     <function>(<argument>, ...)
         ///     <function>(DISTINCT <argument>)
-        indirect case simpleFunction(SQLSimpleFunctionInvocation)
+        case function(String, aggregate: Bool, distinct: Bool, arguments: [SQLExpression])
         
-        /// An aggregate function call.
-        ///
-        ///     <function>(<argument>, ...)
-        ///     <function>(DISTINCT <argument>)
-        indirect case aggregateFunction(SQLAggregateFunctionInvocation)
-
         /// An expression that checks for zero or positive values.
         ///
         ///     <expression> = 0
@@ -195,98 +136,6 @@ public struct SQLExpression {
         ///     document.rowid
         ///     country.code
         case qualifiedFastPrimaryKey(TableAlias)
-        
-        /// An expression that is true iff the row exists:
-        ///
-        /// - For tables with a rowid, it is true iff the rowid is not null.
-        /// - For tables WITHOUT ROWID, it is true iff any primary key column is not null.
-        /// - For views, it is true iff any column is not null.
-        /// - For CTEs, it is not implemented yet.
-        case qualifiedExists(TableAlias, isNegated: Bool)
-        
-        /// Returns a qualified expression
-        func qualified(with alias: TableAlias) -> Impl {
-            switch self {
-            case .databaseValue,
-                 .qualifiedColumn,
-                 .qualifiedFastPrimaryKey,
-                 .qualifiedExists,
-                 .subquery,
-                 .exists:
-                return self
-                
-            case let .column(name):
-                return .qualifiedColumn(name, alias)
-                
-            case let .rowValue(expressions):
-                return .rowValue(expressions.map { $0.qualified(with: alias) })
-                
-            case let .literal(sqlLiteral):
-                return .literal(sqlLiteral.qualified(with: alias))
-                
-            case let .between(
-                expression: expression,
-                lowerBound: lowerBound,
-                upperBound: upperBound,
-                isNegated: isNegated):
-                
-                return .between(
-                    expression: expression.qualified(with: alias),
-                    lowerBound: lowerBound.qualified(with: alias),
-                    upperBound: upperBound.qualified(with: alias),
-                    isNegated: isNegated)
-                
-            case let .binary(op, lhs, rhs):
-                return .binary(op, lhs.qualified(with: alias), rhs.qualified(with: alias))
-                
-            case let .escapableBinary(op, lhs, rhs, escape):
-                return .escapableBinary(
-                    op,
-                    lhs.qualified(with: alias),
-                    rhs.qualified(with: alias),
-                    escape: escape?.qualified(with: alias))
-                
-            case let .associativeBinary(op, expressions):
-                return .associativeBinary(op, expressions.map { $0.qualified(with: alias) })
-                
-            case let .in(expression, collection, isNegated: isNegated):
-                return .in(
-                    expression.qualified(with: alias),
-                    collection.qualified(with: alias),
-                    isNegated: isNegated
-                )
-                
-            case let .unary(op, expression):
-                return .unary(op, expression.qualified(with: alias))
-                
-            case let .compare(op, lhs, rhs):
-                return .compare(op, lhs.qualified(with: alias), rhs.qualified(with: alias))
-                
-            case let .tableMatch(a, expression):
-                return .tableMatch(a, expression.qualified(with: alias))
-                
-            case let .not(expression):
-                return .not(expression.qualified(with: alias))
-                
-            case let .collated(expression, collationName):
-                return .collated(expression.qualified(with: alias), collationName)
-                
-            case .countAll:
-                return .countAll
-                
-            case let .simpleFunction(invocation):
-                return .simpleFunction(invocation.qualified(with: alias))
-                
-            case let .aggregateFunction(invocation):
-                return .aggregateFunction(invocation.qualified(with: alias))
-                
-            case let .isEmpty(expression, isNegated: isNegated):
-                return .isEmpty(expression.qualified(with: alias), isNegated: isNegated)
-                
-            case .fastPrimaryKey:
-                return .qualifiedFastPrimaryKey(alias)
-            }
-        }
     }
     
     /// `BooleanTest` supports truthiness tests.
@@ -303,18 +152,17 @@ public struct SQLExpression {
         case falsey
     }
     
-    /// An associative binary SQL operator, such as `+`, `*`, `AND`, etc.
+    /// `AssociativeBinaryOperator` is an associative binary operator,
+    /// such as `+`, `*`, `AND`, etc.
     ///
     /// Use it with the `joined(operator:)` method. For example:
     ///
-    /// ```swift
-    /// // SELECT score + bonus + 1000 FROM player
-    /// let values = [
-    ///     scoreColumn,
-    ///     bonusColumn,
-    ///     1000.databaseValue]
-    /// let request = Player.select(values.joined(operator: .add))
-    /// ```
+    ///     // SELECT score + bonus + 1000 FROM player
+    ///     let values = [
+    ///         scoreColumn,
+    ///         bonusColumn,
+    ///         1000.databaseValue]
+    ///     Player.select(values.joined(operator: .add))
     public struct AssociativeBinaryOperator: Hashable {
         /// The SQL operator
         let sql: String
@@ -324,7 +172,7 @@ public struct SQLExpression {
         
         /// If true, (a • b) • c is strictly equal to a • (b • c).
         ///
-        /// `AND`, `OR`, `||` (concat), `&`, `|` are stricly associative.
+        /// `AND`, `OR`, `||` (concat) are stricly associative.
         ///
         /// `+` and `*` are not stricly associative when applied to floating
         /// point values.
@@ -333,9 +181,9 @@ public struct SQLExpression {
         /// If true, (a • b) is a bijective function of a, and a bijective
         /// function of b.
         ///
-        /// `||` (concat) is bijective.
+        /// `+` and `||` (concat) are bijective.
         ///
-        /// `AND`, `OR`, `+` and `*`, `&`, `|` are not.
+        /// `AND`, `OR` and `*` are not.
         let isBijective: Bool
         
         /// Creates a binary operator
@@ -346,103 +194,65 @@ public struct SQLExpression {
             self.isBijective = bijective
         }
         
-        /// The `+` binary SQL operator.
+        /// The `+` binary operator
         ///
         /// For example:
         ///
-        /// ```swift
-        /// // score + bonus
-        /// [Column("score"), Column("bonus")].joined(operator: .add)
-        /// ```
+        ///     // score + bonus
+        ///     [Column("score"), Column("bonus")].joined(operator: .add)
         public static let add = AssociativeBinaryOperator(
             sql: "+",
             neutralValue: 0.databaseValue,
             strictlyAssociative: false,
-            bijective: false)
+            bijective: true)
         
-        /// The `*` binary SQL operator.
+        /// The `*` binary operator
         ///
         /// For example:
         ///
-        /// ```swift
-        /// // score * factor
-        /// [Column("score"), Column("factor")].joined(operator: .multiply)
-        /// ```
+        ///     // score * factor
+        ///     [Column("score"), Column("factor")].joined(operator: .multiply)
         public static let multiply = AssociativeBinaryOperator(
             sql: "*",
             neutralValue: 1.databaseValue,
             strictlyAssociative: false,
             bijective: false)
         
-        /// The `AND` binary SQL operator.
+        /// The `AND` binary operator
         ///
         /// For example:
         ///
-        /// ```swift
-        /// // isBlue AND isTall
-        /// [Column("isBlue"), Column("isTall")].joined(operator: .and)
-        /// ```
+        ///     // isBlue AND isTall
+        ///     [Column("isBlue"), Column("isTall")].joined(operator: .and)
         public static let and = AssociativeBinaryOperator(
             sql: "AND",
             neutralValue: true.databaseValue,
             strictlyAssociative: true,
             bijective: false)
         
-        /// The `OR` binary SQL operator.
+        /// The `OR` binary operator
         ///
         /// For example:
         ///
-        /// ```swift
-        /// // isBlue OR isTall
-        /// [Column("isBlue"), Column("isTall")].joined(operator: .or)
-        /// ```
+        ///     // isBlue OR isTall
+        ///     [Column("isBlue"), Column("isTall")].joined(operator: .or)
         public static let or = AssociativeBinaryOperator(
             sql: "OR",
             neutralValue: false.databaseValue,
             strictlyAssociative: true,
             bijective: false)
         
-        /// The `||` string concatenation SQL operator.
+        /// The `||` string concatenation operator
         ///
         /// For example:
         ///
-        /// ```swift
-        /// // firstName || ' ' || lastName
-        /// [Column("firstName"), " ", Column("lastName")].joined(operator: .concat)
-        /// ```
+        ///     // firstName || ' ' || lastName
+        ///     [Column("firstName"), " ", Column("lastName")].joined(operator: .concat)
         public static let concat = AssociativeBinaryOperator(
             sql: "||",
             neutralValue: "".databaseValue,
             strictlyAssociative: true,
             bijective: true)
-        
-        /// The `&` bitwise AND SQL operator.
-        ///
-        /// For example:
-        ///
-        /// ```swift
-        /// // mask & 2
-        /// [Column("mask"), 2.databaseValue].joined(operator: .bitwiseAnd)
-        /// ```
-        public static let bitwiseAnd = AssociativeBinaryOperator(
-            sql: "&",
-            neutralValue: (-1).databaseValue,
-            strictlyAssociative: true,
-            bijective: false)
-        
-        /// The `|` bitwise OR SQL operator.
-        ///
-        /// For example:
-        ///
-        /// ```swift
-        /// // mask | 2
-        /// [Column("mask"), 2.databaseValue].joined(operator: .bitwiseOr)
-        /// ```
-        public static let bitwiseOr = AssociativeBinaryOperator(
-            sql: "|",
-            neutralValue: 0.databaseValue,
-            strictlyAssociative: true,
-            bijective: false)
     }
     
     /// `BinaryOperator` is an SQLite binary operator, such as `>`, `=`, etc.
@@ -453,22 +263,11 @@ public struct SQLExpression {
         /// The SQL operator
         let sql: String
         
-        /// A boolean value indicating if the operator is known to return a
-        /// JSON value.
+        /// Creates a binary operator
         ///
-        /// A false value does not provide any information.
-        let isJSONValue: Bool
-        
-        /// Creates a binary operator.
-        ///
-        /// For example:
-        ///
-        /// ```
-        /// BinaryOperator("-")
-        /// ```
-        init(_ sql: String, isJSONValue: Bool = false) {
+        ///     BinaryOperator("-")
+        init(_ sql: String) {
             self.sql = sql
-            self.isJSONValue = isJSONValue
         }
         
         /// The `<` binary operator
@@ -491,28 +290,6 @@ public struct SQLExpression {
         
         /// The `MATCH` binary operator
         static let match = BinaryOperator("MATCH")
-        
-        /// The `<<` bitwise left shift operator
-        static let leftShift = BinaryOperator("<<")
-        
-        /// The `>>` bitwise right shift operator
-        static let rightShift = BinaryOperator(">>")
-        
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-        /// The `->` SQL operator
-        static let jsonExtractJSON = BinaryOperator("->", isJSONValue: true)
-        
-        /// The `->>` SQL operator
-        static let jsonExtractSQL = BinaryOperator("->>")
-#else
-        /// The `->` SQL operator
-        @available(iOS 16, macOS 13.2, tvOS 17, watchOS 9, *) // SQLite 3.38+
-        static let jsonExtractJSON = BinaryOperator("->", isJSONValue: true)
-        
-        /// The `->>` SQL operator
-        @available(iOS 16, macOS 13.2, tvOS 17, watchOS 9, *) // SQLite 3.38+
-        static let jsonExtractSQL = BinaryOperator("->>")
-#endif
     }
     
     /// `EscapableBinaryOperator` is an SQLite binary operator that accepts an
@@ -540,7 +317,7 @@ public struct SQLExpression {
         ///     let operator = BinaryOperator("LIKE", negated: "NOT LIKE")
         ///     operator.negated!.sql  // NOT LIKE
         var negated: EscapableBinaryOperator {
-            EscapableBinaryOperator(negatedSQL, negated: sql)
+            return EscapableBinaryOperator(negatedSQL, negated: sql)
         }
         
         /// The `LIKE` escapable binary operator
@@ -569,52 +346,33 @@ public struct SQLExpression {
         /// The SQL operator
         let sql: String
         
-        /// Creates an unary operator.
-        init(_ sql: String) {
+        /// If true GRDB puts a white space between the operator and the operand.
+        let needsRightSpace: Bool
+        
+        /// Creates an unary operator
+        ///
+        ///     UnaryOperator("~", needsRightSpace: false)
+        init(_ sql: String, needsRightSpace: Bool) {
             self.sql = sql
+            self.needsRightSpace = needsRightSpace
         }
         
         /// The `-` unary operator
-        static let minus = UnaryOperator("-")
-        
-        /// The `~` unary operator
-        static let bitwiseNot = UnaryOperator("~")
-    }
-    
-    /// Describes the interpretation of an expression in a JSON
-    /// building context.
-    enum JSONInterpretation {
-        /// JSON interpretation is deferred to SQLite:
-        ///
-        /// ```swift
-        /// // JSON_ARRAY('[1, 2, 3]') → '["[1, 2, 3]"]'
-        /// Database.jsonArray(["[1, 2, 3]"])
-        ///
-        /// // JSON_ARRAY(JSON('[1, 2, 3]')) → '[[1, 2, 3]]'
-        /// Database.jsonArray([Database.json("[1, 2, 3]")])
-        ///
-        /// // JSON_ARRAY("info")
-        /// Database.jsonArray([Column("info")])
-        /// ```
-        case deferredToSQLite
-        
-        /// Expression is interpreted as a JSON value:
-        ///
-        /// ```swift
-        /// // JSON_ARRAY(JSON('[1, 2, 3]')) → '[[1, 2, 3]]'
-        /// Database.jsonArray(["[1, 2, 3]"].jsonValue)
-        ///
-        /// // JSON_ARRAY(JSON("info"))
-        /// Database.jsonArray([Column("info").jsonValue])
-        /// Database.jsonArray([JSONColumn("info")])
-        /// ```
-        case jsonValue
+        static let minus = UnaryOperator("-", needsRightSpace: false)
     }
 }
 
+@available(*, deprecated, renamed: "SQLExpression.AssociativeBinaryOperator")
+public typealias SQLAssociativeBinaryOperator = SQLExpression.AssociativeBinaryOperator
+
 // MARK: - Creating Expressions
 
-extension SQLExpression {    
+extension SQLExpression {
+    
+    /// SQLite row values were shipped in SQLite 3.15:
+    /// <https://www.sqlite.org/releaselog/3_15_0.html>
+    static let rowValuesAreAvailable = (sqlite3_libversion_number() >= 3015000)
+    
     // MARK: Basic Expressions
     
     /// A column.
@@ -686,17 +444,6 @@ extension SQLExpression {
         if case let .collated(expression, collationName) = expression.impl {
             // Prefer: expression BETWEEN lowerBound AND upperBound COLLATE collation
             // over:   (expression COLLATE collation) BETWEEN lowerBound AND upperBound
-            //
-            // This transformation was introduced in GRDB v0.42.0, for the first
-            // release of the query interface:
-            // https://github.com/groue/GRDB.swift/blob/3b3cb6bdecdfaac6e3d55bb7ecccf22f2749140f/GRDB/FetchRequest/SQLSupport/Collation.swift#L224-L239
-            // The commit is a big squash, and we've lost the original intent.
-            // It is likely just an SQL aesthetic preference of mine.
-            //
-            // According to https://www.sqlite.org/datatype3.html#assigning_collating_sequences_from_sql
-            // this rewriting should not have any functional impact. Yet if any
-            // user complains eventually, we should just remove this rewriting
-            // rule without any resistance.
             return collated(between(
                                 expression: expression,
                                 lowerBound: lowerBound,
@@ -718,8 +465,6 @@ extension SQLExpression {
     ///     <lhs> <= <rhs>
     ///     <lhs> LIKE <rhs>
     static func binary(_ op: BinaryOperator, _ lhs: SQLExpression, _ rhs: SQLExpression) -> Self {
-        // See `between(expression:lowerBound:upperBound:isNegated:)` for some
-        // explanation of these rewriting rules.
         if case let .collated(lhs, collationName) = lhs.impl {
             // Prefer: lhs <= rhs COLLATE collation
             // over:   (lhs COLLATE collation) <= rhs
@@ -817,8 +562,6 @@ extension SQLExpression {
     ///
     /// See also `SQLExpression.equal(_:_:)`.
     static func compare(_ op: EqualityOperator, _ lhs: SQLExpression, _ rhs: SQLExpression) -> Self {
-        // See `between(expression:lowerBound:upperBound:isNegated:)` for some
-        // explanation of these rewriting rules.
         if case let .collated(lhs, collationName) = lhs.impl {
             // Prefer: lhs = rhs COLLATE collation
             // over:   (lhs COLLATE collation) = rhs
@@ -867,221 +610,53 @@ extension SQLExpression {
     ///
     ///     <expression> COLLATE <collation>
     static func collated(_ expression: SQLExpression, _ collationName: Database.CollationName) -> Self {
-        switch expression.impl {
-        case let .in(expression, collection, isNegated: isNegated):
-            // According to https://www.sqlite.org/datatype3.html#assigning_collating_sequences_from_sql
-            //
-            // > The collating sequence used for expressions of the form
-            // > "x IN (y, z, ...)" is the collating sequence of x. If an
-            // > explicit collating sequence is required on an IN operator it
-            // > should be applied to the left operand, like this:
-            // > "x COLLATE nocase IN (y,z, ...)".
-            //
-            // Indeed:
-            //
-            //      $ sqlite3
-            //      SQLite version 3.32.3 2020-06-18 14:16:19
-            //      sqlite> SELECT 'a' IN ('A') COLLATE NOCASE;
-            //      0
-            //      sqlite> SELECT ('a' COLLATE NOCASE) IN ('A');
-            //      1
-            //
-            // Conclusion: "x IN (y,z, ...) COLLATE nocase" can not match the
-            // user intent. We could fatal error. Or warn. Or just make it work:
-            //
-            // Prefer: (expression COLLATE collation) IN (...)
-            // over:   expression IN (...) COLLATE collation
-            return .in(.collated(expression, collationName), collection, isNegated: isNegated)
-            
-        case let .associativeBinary(op, expressions):
-            // The expression rewrite performed for the `IN` operator above
-            // allows the user to have the following Swift code match the intent:
-            //
-            //      // name COLLATE NOCASE IN ('foo', 'bar')
-            //      ["foo", "bar"].contains(Column("name")).collating(.nocase)
-            //      ["foo", "bar"].contains(Column("name").collating(.nocase))
-            //
-            // The BETWEEN case is supported as well (see
-            // `between(expression:lowerBound:upperBound:isNegated:)`):
-            //
-            //      // name BETWEEN 'foo' AND 'bar' COLLATE NOCASE
-            //      ("foo"..."bar").contains(Column("name")).collating(.nocase)
-            //      ("foo"..."bar").contains(Column("name").collating(.nocase))
-            //
-            // We just miss support for non-closed ranges:
-            //
-            //      // (name >= 'foo' COLLATE NOCASE) AND (name < 'bar' COLLATE NOCASE)
-            //      ("foo"..<"bar").contains(Column("name")).collating(.nocase)
-            //      ("foo"..<"bar").contains(Column("name").collating(.nocase))
-            return .associativeBinary(op, expressions.map { $0.collating(collationName) })
-            
-        default:
-            return self.init(impl: .collated(expression, collationName))
-        }
+        self.init(impl: .collated(expression, collationName))
     }
     
     // MARK: Functions
     
-    // TODO: add missing pure functions:
-    // https://www.sqlite.org/lang_aggfunc.html
-    // https://www.sqlite.org/lang_datefunc.html
-    // https://www.sqlite.org/lang_mathfunc.html
-    private static let knownPureFunctions: Set<String> = [
-        "ABS",
-        "CHAR",
-        "COALESCE",
-        "GLOB",
-        "HEX",
-        "IFNULL",
-        "IIF",
-        "INSTR",
-        "JSON",
-        "JSON_ARRAY",
-        "JSON_GROUP_ARRAY",
-        "JSON_GROUP_OBJECT",
-        "JSON_INSERT",
-        "JSON_OBJECT",
-        "JSON_PATCH",
-        "JSON_REMOVE",
-        "JSON_REPLACE",
-        "JSON_SET",
-        "JSON_QUOTE",
-        "LENGTH",
-        "LIKE",
-        "LIKELIHOOD",
-        "LIKELY",
-        "LOAD_EXTENSION",
-        "LOWER",
-        "LTRIM",
-        "NULLIF",
-        "PRINTF",
-        "QUOTE",
-        "REPLACE",
-        "ROUND",
-        "RTRIM",
-        "SOUNDEX",
-        "SQLITE_COMPILEOPTION_GET",
-        "SQLITE_COMPILEOPTION_USED",
-        "SQLITE_SOURCE_ID",
-        "SQLITE_VERSION",
-        "SUBSTR",
-        "TRIM",
-        "TYPEOF",
-        "UNICODE",
-        "UNLIKELY",
-        "UPPER",
-        "ZEROBLOB",
-    ]
-    
-    private static let knownAggregateFunctions: Set<String> = [
-        "AVG",
-        "COUNT",
-        "GROUP_CONCAT",
-        "JSON_GROUP_ARRAY",
-        "JSON_GROUP_OBJECT",
-        "MAX", // when single argument
-        "MIN", // when single argument
-        "SUM",
-        "TOTAL",
-    ]
-    
-    private static let knownFunctionsReturningJSONValue: Set<String> = [
-        "JSON",
-        "JSON_ARRAY",
-        "JSON_GROUP_ARRAY",
-        "JSON_GROUP_OBJECT",
-        "JSON_INSERT",
-        "JSON_OBJECT",
-        "JSON_PATCH",
-        "JSON_REMOVE",
-        "JSON_REPLACE",
-        "JSON_SET",
-        "JSON_QUOTE",
-    ]
-    
     /// The `COUNT(*)` expression.
     static let countAll = SQLExpression(impl: .countAll)
-    
-    /// A function call.
-    static func function(_ functionName: String, _ arguments: [SQLExpression]) -> Self {
-        let name = functionName.uppercased()
-        
-        if (name == "MAX" || name == "MIN") && arguments.count > 1 {
-            return .simpleFunction(
-                functionName,
-                arguments,
-                isPure: true,
-                isJSONValue: false)
-            
-        } else if Self.knownAggregateFunctions.contains(name) {
-            return .aggregateFunction(
-                functionName,
-                arguments,
-                isJSONValue: Self.knownFunctionsReturningJSONValue.contains(name))
-            
-        } else {
-            let isJSONValue: Bool
-            if name == "JSON_EXTRACT" && arguments.count > 2 {
-                isJSONValue = true
-            } else {
-                isJSONValue = Self.knownFunctionsReturningJSONValue.contains(name)
-            }
-            
-            return .simpleFunction(
-                functionName, arguments,
-                isPure: Self.knownPureFunctions.contains(name),
-                isJSONValue: isJSONValue)
-        }
-    }
-    
-    /// A simple function call.
-    ///
-    /// - warning: Don't use this method for aggregate functions!
-    static func simpleFunction(
-        _ name: String,
-        _ arguments: [SQLExpression],
-        isPure: Bool = false,
-        isJSONValue: Bool = false)
-    -> Self
-    {
-        .init(impl: .simpleFunction(SQLSimpleFunctionInvocation(
-            name: name,
-            arguments: arguments,
-            isPure: isPure,
-            isJSONValue: isJSONValue)))
-    }
-    
-    /// An aggregate function call.
-    static func aggregateFunction(
-        _ name: String,
-        _ arguments: [SQLExpression],
-        isDistinct: Bool = false,
-        ordering: SQLOrdering? = nil,
-        filter: SQLExpression? = nil,
-        isJSONValue: Bool = false)
-    -> Self
-    {
-        .init(impl: .aggregateFunction(.init(
-            name: name,
-            arguments: arguments,
-            isDistinct: isDistinct,
-            ordering: ordering,
-            filter: filter,
-            isJSONValue: isJSONValue)))
-    }
     
     /// The `COUNT` function.
     ///
     ///     COUNT(<expression>)
     static func count(_ expression: SQLExpression) -> Self {
-        function("COUNT", [expression])
+        aggregate("COUNT", [expression])
     }
     
     /// The `COUNT(DISTINCT)` function.
     ///
     ///     COUNT(DISTINCT <expression>)
     static func countDistinct(_ expression: SQLExpression) -> Self {
-        aggregateFunction("COUNT", [expression], isDistinct: true)
+        distinctAggregate("COUNT", expression)
+    }
+    
+    /// A function call.
+    ///
+    ///     <function>(<argument>, ...)
+    ///
+    /// - warning: for aggregate functions, call one of:
+    ///     - `SQLExpression.aggregate(_:_:)`,
+    ///     - `SQLExpression.distinctAggregate(_:_:)`,
+    ///     - `SQLExpression.countDistinct(_:)`
+    ///     - `SQLExpression.countAll`.
+    static func function(_ name: String, _ arguments: [SQLExpression]) -> Self {
+        self.init(impl: .function(name, aggregate: false, distinct: false, arguments: arguments))
+    }
+    
+    /// An aggregate function call.
+    ///
+    ///     <aggregate>(<argument>, ...)
+    static func aggregate(_ name: String, _ arguments: [SQLExpression]) -> Self {
+        self.init(impl: .function(name, aggregate: true, distinct: false, arguments: arguments))
+    }
+    
+    /// A distinct aggregate function call.
+    ///
+    ///     <aggregate>(DISTINCT <argument>)
+    static func distinctAggregate(_ name: String, _ argument: SQLExpression) -> Self {
+        self.init(impl: .function(name, aggregate: true, distinct: true, arguments: [argument]))
     }
     
     /// An expression that checks for zero or positive values.
@@ -1094,20 +669,17 @@ extension SQLExpression {
     
     // MARK: Deferred
     
-    // TODO: replace with something that can work for WITHOUT ROWID table with a multi-columns primary key.
     /// An expression that picks the fastest available primary key.
     ///
     /// It crashes for WITHOUT ROWID table with a multi-columns primary key.
+    /// Future versions of GRDB may use [row values](https://www.sqlite.org/rowvalue.html).
     ///
     ///     id
     ///     rowid
     ///     code
     static let fastPrimaryKey = SQLExpression(impl: .fastPrimaryKey)
     
-    // TODO: replace with something that can work for WITHOUT ROWID table with a multi-columns primary key.
     /// A qualified "fast primary key" (see `SQLExpression.fastPrimaryKey`).
-    ///
-    /// It crashes for WITHOUT ROWID table with a multi-columns primary key.
     ///
     ///     player.id
     ///     document.rowid
@@ -1115,43 +687,18 @@ extension SQLExpression {
     static func qualifiedFastPrimaryKey(_ alias: TableAlias) -> Self {
         self.init(impl: .qualifiedFastPrimaryKey(alias))
     }
-    
-    /// An expression that is true iff the row exists:
-    ///
-    /// - For tables with a rowid, it is true iff the rowid is not null.
-    /// - For tables WITHOUT ROWID, it is true iff any primary key column is not null.
-    /// - For views, it is true iff any column is not null.
-    /// - For CTEs, it is not implemented yet.
-    static func qualifiedExists(_ alias: TableAlias) -> Self {
-        self.init(impl: .qualifiedExists(alias, isNegated: false))
-    }
 }
-
-// MARK: - Deriving Expressions
-
-extension SQLExpression {
-    /// Returns a qualified expression
-    func qualified(with alias: TableAlias) -> Self {
-        .init(impl: impl.qualified(with: alias), preferredJSONInterpretation: preferredJSONInterpretation)
-    }
-    
-    func withPreferredJSONInterpretation(_ interpretation: JSONInterpretation) -> Self {
-        .init(impl: impl, preferredJSONInterpretation: interpretation)
-    }
-}
-
-// MARK: - Expressions Information
 
 extension SQLExpression {
     /// The expression as a quoted SQL literal (not public in order to avoid abuses)
     ///
     ///     try "foo'bar".databaseValue.quotedSQL(db) // "'foo''bar'""
     func quotedSQL(_ db: Database) throws -> String {
-        let context = SQLGenerationContext(db, argumentsSink: .literalValues)
+        let context = SQLGenerationContext(db, argumentsSink: .forRawSQL)
         return try sql(context)
     }
     
-    /// If this expression is a table column, returns the name of this column.
+    /// If this expression is a table colum, returns the name of this column.
     ///
     /// When in doubt, returns nil.
     ///
@@ -1185,6 +732,19 @@ extension SQLExpression {
                 return nil
             }
             
+        case let .binary(op, lhs, rhs):
+            guard acceptsBijection && op == .subtract else {
+                return nil
+            }
+            
+            if lhs.isConstantInRequest {
+                return try rhs.column(db, for: alias, acceptsBijection: acceptsBijection)
+            } else if rhs.isConstantInRequest {
+                return try lhs.column(db, for: alias, acceptsBijection: acceptsBijection)
+            } else {
+                return nil
+            }
+            
         case let .associativeBinary(op, expressions):
             assert(expressions.count > 1)
             guard acceptsBijection && op.isBijective else {
@@ -1205,8 +765,18 @@ extension SQLExpression {
         case let .collated(expression, _):
             return try expression.column(db, for: alias, acceptsBijection: acceptsBijection)
             
-        case let .simpleFunction(invocation) where acceptsBijection:
-            return try invocation.column(db, for: alias)
+        case let .function(name, aggregate: false, distinct: false, arguments: arguments):
+            guard acceptsBijection else {
+                return nil
+            }
+            let name = name.uppercased()
+            if ["HEX", "QUOTE"].contains(name) && arguments.count == 1 {
+                return try arguments[0].column(db, for: alias, acceptsBijection: acceptsBijection)
+            } else if name == "IFNULL" && arguments.count == 2 && arguments[1].isConstantInRequest {
+                return try arguments[0].column(db, for: alias, acceptsBijection: acceptsBijection)
+            } else {
+                return nil
+            }
             
         case let .qualifiedFastPrimaryKey(a):
             if alias == a {
@@ -1299,7 +869,7 @@ extension SQLExpression {
                 \(op.sql) \
                 \(rhs.sql(context, wrappedInParenthesis: true))
                 """
-            if let escape {
+            if let escape = escape {
                 resultSQL += try " ESCAPE \(escape.sql(context, wrappedInParenthesis: true))"
             }
             if wrappedInParenthesis {
@@ -1341,7 +911,9 @@ extension SQLExpression {
             return resultSQL
             
         case let .unary(op, expression):
-            var resultSQL = try op.sql + expression.sql(context, wrappedInParenthesis: true)
+            var resultSQL = try op.sql
+                + (op.needsRightSpace ? " " : "")
+                + expression.sql(context, wrappedInParenthesis: true)
             if wrappedInParenthesis {
                 resultSQL = "(\(resultSQL))"
             }
@@ -1390,11 +962,13 @@ extension SQLExpression {
         case .countAll:
             return "COUNT(*)"
             
-        case let .simpleFunction(invocation):
-            return try invocation.sql(context)
-            
-        case let .aggregateFunction(invocation):
-            return try invocation.sql(context, wrappedInParenthesis: wrappedInParenthesis)
+        case let .function(name, aggregate: aggregate, distinct: distinct, arguments: arguments):
+            assert(!distinct || aggregate, "distinct requires aggregate")
+            assert(!distinct || arguments.count == 1, "distinct requires a single argument")
+            return try name
+                + (distinct ? "(DISTINCT " : "(")
+                + arguments.map { try $0.sql(context) }.joined(separator: ", ")
+                + ")"
             
         case let .isEmpty(expression, isNegated: isNegated):
             var resultSQL = try """
@@ -1419,22 +993,6 @@ extension SQLExpression {
             return try SQLExpression
                 .qualifiedColumn(column, alias)
                 .sql(context, wrappedInParenthesis: wrappedInParenthesis)
-            
-        case let .qualifiedExists(alias, isNegated: isNegated):
-            // Works with tables and views.
-            // TODO: add support for CTEs eventually.
-            let existenceCheckColumns = try context.db.existenceCheckColumns(in: alias.tableName)
-            if isNegated {
-                return try existenceCheckColumns
-                    .map { SQLExpression.qualifiedColumn($0, alias) == nil }
-                    .joined(operator: .and)
-                    .sql(context, wrappedInParenthesis: wrappedInParenthesis)
-            } else {
-                return try existenceCheckColumns
-                    .map { SQLExpression.qualifiedColumn($0, alias) != nil }
-                    .joined(operator: .or)
-                    .sql(context, wrappedInParenthesis: wrappedInParenthesis)
-            }
         }
     }
     
@@ -1777,18 +1335,6 @@ extension SQLExpression {
                 return .isEmpty(expression, isNegated: !isNegated)
             }
             
-        case let .qualifiedExists(alias, isNegated: isNegated):
-            switch test {
-            case .true:
-                return .compare(.equal, self, true.sqlExpression)
-                
-            case .false:
-                return .compare(.equal, self, false.sqlExpression)
-                
-            case .falsey:
-                return SQLExpression(impl: .qualifiedExists(alias, isNegated: !isNegated))
-            }
-            
         default:
             switch test {
             case .true:
@@ -1802,6 +1348,17 @@ extension SQLExpression {
             }
         }
     }
+    
+    private static let knownPureFunctions = [
+        "ABS", "CHAR", "COALESCE", "GLOB", "HEX", "IFNULL",
+        "IIF", "INSTR", "LENGTH", "LIKE", "LIKELIHOOD",
+        "LIKELY", "LOAD_EXTENSION", "LOWER", "LTRIM",
+        "NULLIF", "PRINTF", "QUOTE", "REPLACE", "ROUND",
+        "RTRIM", "SOUNDEX", "SQLITE_COMPILEOPTION_GET",
+        "SQLITE_COMPILEOPTION_USED", "SQLITE_SOURCE_ID",
+        "SQLITE_VERSION", "SUBSTR", "TRIM", "TRIM",
+        "TYPEOF", "UNICODE", "UNLIKELY", "UPPER", "ZEROBLOB",
+    ]
     
     /// Returns true if the expression has a unique value when SQLite runs
     /// a request.
@@ -1843,11 +1400,95 @@ extension SQLExpression {
              let .collated(expression, _):
             return expression.isConstantInRequest
             
-        case let .simpleFunction(invocation):
-            return invocation.isConstantInRequest
+        case let .function(name, aggregate: false, distinct: false, arguments: arguments):
+            let name = name.uppercased()
+            guard ((name == "MAX" || name == "MIN") && arguments.count > 1)
+                    || Self.knownPureFunctions.contains(name)
+            else {
+                return false // Don't know - assume not constant
+            }
+            
+            return arguments.allSatisfy(\.isConstantInRequest)
             
         default:
             return false
+        }
+    }
+    
+    /// Returns a qualified expression
+    func qualified(with alias: TableAlias) -> SQLExpression {
+        switch impl {
+        case .databaseValue,
+             .qualifiedColumn,
+             .qualifiedFastPrimaryKey,
+             .subquery,
+             .exists:
+            return self
+            
+        case let .column(name):
+            return .qualifiedColumn(name, alias)
+            
+        case let .rowValue(expressions):
+            assert(!expressions.isEmpty)
+            return .rowValue(expressions.map { $0.qualified(with: alias) })!
+            
+        case let .literal(sqlLiteral):
+            return .literal(sqlLiteral.qualified(with: alias))
+            
+        case let .between(expression: expression, lowerBound: lowerBound, upperBound: upperBound, isNegated: isNegated):
+            return .between(
+                expression: expression.qualified(with: alias),
+                lowerBound: lowerBound.qualified(with: alias),
+                upperBound: upperBound.qualified(with: alias),
+                isNegated: isNegated)
+            
+        case let .binary(op, lhs, rhs):
+            return .binary(op, lhs.qualified(with: alias), rhs.qualified(with: alias))
+            
+        case let .escapableBinary(op, lhs, rhs, escape):
+            return .escapableBinary(
+                op,
+                lhs.qualified(with: alias),
+                rhs.qualified(with: alias),
+                escape: escape?.qualified(with: alias))
+            
+        case let .associativeBinary(op, expressions):
+            return .associativeBinary(op, expressions.map { $0.qualified(with: alias) })
+            
+        case let .in(expression, collection, isNegated: isNegated):
+            return .in(
+                expression.qualified(with: alias),
+                collection.qualified(with: alias),
+                isNegated: isNegated
+            )
+            
+        case let .unary(op, expression):
+            return .unary(op, expression.qualified(with: alias))
+            
+        case let .compare(op, lhs, rhs):
+            return .compare(op, lhs.qualified(with: alias), rhs.qualified(with: alias))
+            
+        case let .tableMatch(a, expression):
+            return .tableMatch(a, expression.qualified(with: alias))
+            
+        case let .not(expression):
+            return .not(expression.qualified(with: alias))
+            
+        case let .collated(expression, collationName):
+            return .collated(expression.qualified(with: alias), collationName)
+            
+        case .countAll:
+            return .countAll
+            
+        case let .function(name, aggregate: aggregate, distinct: distinct, arguments: arguments):
+            return SQLExpression(impl: .function(name, aggregate: aggregate, distinct: distinct,
+                                                 arguments: arguments.map { $0.qualified(with: alias) }))
+            
+        case let .isEmpty(expression, isNegated: isNegated):
+            return .isEmpty(expression.qualified(with: alias), isNegated: isNegated)
+            
+        case .fastPrimaryKey:
+            return .qualifiedFastPrimaryKey(alias)
         }
     }
     
@@ -1900,288 +1541,46 @@ extension SQLExpression {
             
             return false
             
-        case .countAll:
-            return true
-            
-        case .aggregateFunction:
+        case .countAll,
+             .function(_, aggregate: true, distinct: _, arguments: _):
             return true
             
         default:
             return false
         }
     }
-}
-
-/// https://www.sqlite.org/syntax/simple-function-invocation.html
-struct SQLSimpleFunctionInvocation {
-    var name: String
-    var arguments: [SQLExpression]
-    
-    /// A boolean value indicating if a function is known to be pure.
-    ///
-    /// A false value does not provide any information.
-    var isPure: Bool
-    
-    /// A boolean value indicating if a function is known to return a
-    /// JSON value.
-    ///
-    /// A false value does not provide any information.
-    var isJSONValue: Bool
-
-    var isConstantInRequest: Bool {
-        isPure && arguments.allSatisfy(\.isConstantInRequest)
-    }
-    
-    func qualified(with alias: TableAlias) -> Self {
-        SQLSimpleFunctionInvocation(
-            name: name,
-            arguments: arguments.map { $0.qualified(with: alias) },
-            isPure: isPure,
-            isJSONValue: isJSONValue)
-    }
-    
-    func column(_ db: Database, for alias: TableAlias) throws -> String? {
-        let name = name.uppercased()
-        if ["HEX", "QUOTE"].contains(name) && arguments.count == 1 {
-            return try arguments[0].column(db, for: alias, acceptsBijection: true)
-        } else if name == "IFNULL" && arguments.count == 2 && arguments[1].isConstantInRequest {
-            return try arguments[0].column(db, for: alias, acceptsBijection: true)
-        } else {
-            return nil
-        }
-    }
-    
-    func sql(_ context: SQLGenerationContext) throws -> String {
-        var sql = name
-        sql += "("
-        sql += try arguments
-            .map { try $0.sql(context) }
-            .joined(separator: ", ")
-        sql += ")"
-        return sql
-    }
-}
-
-/// https://www.sqlite.org/syntax/aggregate-function-invocation.html
-struct SQLAggregateFunctionInvocation {
-    var name: String
-    var arguments: [SQLExpression]
-    var isDistinct = false
-    var ordering: SQLOrdering? = nil // SQLite 3.44.0+
-    var filter: SQLExpression? = nil // @available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) SQLite 3.30+
-    
-    /// A boolean value indicating if a function is known to return a
-    /// JSON value.
-    ///
-    /// A false value does not provide any information.
-    var isJSONValue: Bool
-    
-    func qualified(with alias: TableAlias) -> Self {
-        SQLAggregateFunctionInvocation(
-            name: name,
-            arguments: arguments.map { $0.qualified(with: alias) },
-            isDistinct: isDistinct,
-            ordering: ordering?.qualified(with: alias),
-            filter: filter?.qualified(with: alias),
-            isJSONValue: isJSONValue)
-    }
-    
-    func sql(_ context: SQLGenerationContext, wrappedInParenthesis: Bool) throws -> String {
-        var sql = name
-        
-        if isDistinct {
-            sql += "(DISTINCT "
-        } else {
-            sql += "("
-        }
-        
-        sql += try arguments
-            .map { try $0.sql(context) }
-            .joined(separator: ", ")
-        
-        if let ordering {
-            sql += try " ORDER BY \(ordering.sql(context))"
-        }
-        
-        sql += ")"
-        
-        if let filter {
-            sql += try " FILTER (WHERE \(filter.sql(context)))"
-        }
-        
-        if wrappedInParenthesis && filter != nil {
-            return "(\(sql))"
-        } else {
-            return sql
-        }
-    }
-}
-
-// MARK: - JSON
-
-extension SQLExpression {
-    /// A boolean value indicating if the expression is known to be a
-    /// JSON value.
-    ///
-    /// A false value does not provide any information.
-    ///
-    /// For examples:
-    ///
-    /// ```swift
-    /// // isJSONValue is true:
-    /// //
-    /// // NULL
-    /// // JSON('[1, 2, 3]')
-    /// // info -> 'address'
-    /// DatabaseValue.null
-    /// Database.json("[1, 2, 3]")
-    /// JSONColumn("info").jsonRepresentation(forKey: "address")
-    ///
-    /// // isJSONValue is false
-    /// //
-    /// // '[1, 2, 3]'
-    /// // info
-    /// // info ->> 'address'
-    /// [1, 2, 3].databaseValue
-    /// JSONColumn("info")
-    /// JSONColumn("info")["address"]
-    /// ```
-    var isJSONValue: Bool {
-        switch impl {
-        case .databaseValue(.null):
-            return true
-            
-        case let .binary(op, _, _):
-            return op.isJSONValue
-            
-        case let .collated(expression, _):
-            return expression.isJSONValue
-            
-        case let .simpleFunction(invocation):
-            return invocation.isJSONValue
-            
-        case let .aggregateFunction(invocation):
-            return invocation.isJSONValue
-            
-        default:
-            return false
-        }
-    }
-    
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-    /// Returns an expression suitable in JSON building contexts.
-    var jsonBuilderExpression: SQLExpression {
-        switch preferredJSONInterpretation {
-        case .deferredToSQLite:
-            return self
-            
-        case .jsonValue:
-            if isJSONValue {
-                return self
-            } else {
-                // Needs explicit call to JSON()
-                return .function("JSON", [self])
-            }
-        }
-    }
-#else
-    @available(iOS 16, macOS 10.15, tvOS 17, watchOS 9, *) // SQLite 3.38+ with exceptions for macOS
-    /// Returns an expression suitable in JSON building contexts.
-    var jsonBuilderExpression: SQLExpression {
-        switch preferredJSONInterpretation {
-        case .deferredToSQLite:
-            return self
-            
-        case .jsonValue:
-            if isJSONValue {
-                return self
-            } else {
-                // Needs explicit call to JSON()
-                return .function("JSON", [self])
-            }
-        }
-    }
-#endif
 }
 
 // MARK: - SQLExpressible
 
-/// A type that can be used as an SQL expression.
+/// `SQLExpressible` is the protocol for all types that can be used as an
+/// SQL expression.
 ///
-/// Related SQLite documentation <https://www.sqlite.org/syntax/expr.html>
+/// It is adopted by protocols like `DatabaseValueConvertible`, and types
+/// like `Column`.
+///
+/// See <https://github.com/groue/GRDB.swift/#the-query-interface>
 public protocol SQLExpressible {
     /// Returns an SQL expression.
     var sqlExpression: SQLExpression { get }
 }
 
+#if compiler(>=5.5)
 extension SQLExpressible where Self == Column {
     /// The hidden rowID column
     public static var rowID: Self { Column.rowID }
 }
+#endif
 
-/// A database-specific type that can be used as an SQL expression.
-///
-/// `SQLSpecificExpressible` is the protocol for all database-specific types
-/// that can be turned into an SQL expression. Types whose existence is not purely
-/// dedicated to the database should adopt the ``SQLExpressible``
+/// `SQLSpecificExpressible` is a protocol for all database-specific types that
+/// can be turned into an SQL expression. Types whose existence is not purely
+/// dedicated to the database should adopt the `SQLExpressible`
 /// protocol instead.
 ///
-/// For example, ``Column`` is a type that only exists to help you build
-/// requests, and it adopts `SQLSpecificExpressible`.
+/// For example, `Column` is a type that only exists to help you build requests,
+/// and it adopts `SQLSpecificExpressible`.
 ///
-/// On the other side, `Int` adopts ``SQLExpressible``.
-///
-/// ## Topics
-///
-/// ### Applying a Collation
-///
-/// - ``collating(_:)-2mr78``
-/// - ``collating(_:)-10dk1``
-///
-/// ### SQL Functions & Operators
-///
-/// See also JSON functions in <doc:JSON>.
-///
-/// - ``abs(_:)-5l6xp``
-/// - ``average(_:)``
-/// - ``average(_:filter:)``
-/// - ``capitalized``
-/// - ``count(_:)``
-/// - ``count(distinct:)``
-/// - ``dateTime(_:_:)``
-/// - ``julianDay(_:_:)``
-/// - ``length(_:)-41me0``
-/// - ``like(_:escape:)``
-/// - ``localizedCapitalized``
-/// - ``localizedLowercased``
-/// - ``localizedUppercased``
-/// - ``lowercased``
-/// - ``min(_:)``
-/// - ``min(_:filter:)``
-/// - ``max(_:)``
-/// - ``max(_:filter:)``
-/// - ``sum(_:)``
-/// - ``sum(_:filter:)``
-/// - ``total(_:)``
-/// - ``total(_:filter:)``
-/// - ``uppercased``
-/// - ``SQLDateModifier``
-///
-/// ### Interpreting an expression as JSON
-///
-/// - ``asJSON``
-///
-/// ### Creating Ordering Terms
-///
-/// - ``asc``
-/// - ``ascNullsLast``
-/// - ``desc``
-/// - ``descNullsFirst``
-///
-/// ### Creating Result Columns
-///
-/// - ``forKey(_:)-3xk0``
-/// - ``forKey(_:)-3egx6``
+/// On the other side, `Int` adopts `SQLExpressible`.
 public protocol SQLSpecificExpressible: SQLExpressible, SQLSelectable, SQLOrderingTerm {
     // SQLExpressible can be adopted by Swift standard types, and user
     // types, through the DatabaseValueConvertible protocol which inherits
@@ -2198,9 +1597,9 @@ public protocol SQLSpecificExpressible: SQLExpressible, SQLSelectable, SQLOrderi
     // spill out. The three declarations below have no chance overloading a
     // Swift-defined operator, or a user-defined operator:
     //
-    // - ==(some SQLExpressible, some SQLSpecificExpressible)
-    // - ==(some SQLSpecificExpressible, some SQLExpressible)
-    // - ==(some SQLSpecificExpressible, some SQLSpecificExpressible)
+    // - ==(SQLExpressible, SQLSpecificExpressible)
+    // - ==(SQLSpecificExpressible, SQLExpressible)
+    // - ==(SQLSpecificExpressible, SQLSpecificExpressible)
 }
 
 extension SQLSpecificExpressible {
@@ -2225,57 +1624,43 @@ extension Sequence where Element: SQLSpecificExpressible {
     ///
     /// For example:
     ///
-    /// ```swift
-    /// // SELECT * FROM player
-    /// // WHERE (registered
-    /// //        AND (score >= 1000)
-    /// //        AND (name IS NOT NULL))
-    /// let conditions = [
-    ///     Column("registered"),
-    ///     Column("score") >= 1000,
-    ///     Column("name") != nil]
-    /// Player.filter(conditions.joined(operator: .and))
-    /// ```
+    ///     // SELECT * FROM player
+    ///     // WHERE (registered
+    ///     //        AND (score >= 1000)
+    ///     //        AND (name IS NOT NULL))
+    ///     let conditions = [
+    ///         Column("registered"),
+    ///         Column("score") >= 1000,
+    ///         Column("name") != nil]
+    ///     Player.filter(conditions.joined(operator: .and))
     ///
     /// When the sequence is empty, `joined(operator:)` returns the neutral
-    /// value of the operator. It is:
-    ///
-    /// - `0` for ``SQLExpression/AssociativeBinaryOperator/add``
-    /// - `1` for ``SQLExpression/AssociativeBinaryOperator/multiply``
-    /// - `false` for ``SQLExpression/AssociativeBinaryOperator/or``
-    /// - `true` for ``SQLExpression/AssociativeBinaryOperator/and``
-    /// - `""` for ``SQLExpression/AssociativeBinaryOperator/concat``
+    /// value of the operator. It is 0 (zero) for `.add`, 1 for ‘.multiply`,
+    /// false for `.or`, and true for `.and`.
     public func joined(operator: SQLExpression.AssociativeBinaryOperator) -> SQLExpression {
         .associativeBinary(`operator`, map(\.sqlExpression))
     }
 }
 
-extension Sequence where Element == any SQLSpecificExpressible {
+extension Sequence where Element == SQLSpecificExpressible {
     /// Returns an expression by joining all elements with an associative SQL
     /// binary operator.
     ///
     /// For example:
     ///
-    /// ```
-    /// // SELECT * FROM player
-    /// // WHERE (registered
-    /// //        AND (score >= 1000)
-    /// //        AND (name IS NOT NULL))
-    /// let conditions = [
-    ///     Column("registered"),
-    ///     Column("score") >= 1000,
-    ///     Column("name") != nil]
-    /// Player.filter(conditions.joined(operator: .and))
-    /// ```
+    ///     // SELECT * FROM player
+    ///     // WHERE (registered
+    ///     //        AND (score >= 1000)
+    ///     //        AND (name IS NOT NULL))
+    ///     let conditions = [
+    ///         Column("registered"),
+    ///         Column("score") >= 1000,
+    ///         Column("name") != nil]
+    ///     Player.filter(conditions.joined(operator: .and))
     ///
     /// When the sequence is empty, `joined(operator:)` returns the neutral
-    /// value of the operator. It is:
-    ///
-    /// - `0` for ``SQLExpression/AssociativeBinaryOperator/add``
-    /// - `1` for ``SQLExpression/AssociativeBinaryOperator/multiply``
-    /// - `false` for ``SQLExpression/AssociativeBinaryOperator/or``
-    /// - `true` for ``SQLExpression/AssociativeBinaryOperator/and``
-    /// - `""` for ``SQLExpression/AssociativeBinaryOperator/concat``
+    /// value of the operator. It is 0 (zero) for `.add`, 1 for ‘.multiply`,
+    /// false for `.or`, and true for `.and`.
     public func joined(operator: SQLExpression.AssociativeBinaryOperator) -> SQLExpression {
         .associativeBinary(`operator`, map(\.sqlExpression))
     }
@@ -2285,35 +1670,47 @@ extension Sequence where Element == any SQLSpecificExpressible {
 
 extension SQLSpecificExpressible {
     
-    /// An ordering term for ascending order (nulls first).
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
     public var asc: SQLOrdering {
         .asc(sqlExpression)
     }
     
-    /// An ordering term for descending order (nulls last).
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
     public var desc: SQLOrdering {
         .desc(sqlExpression)
     }
     
     #if GRDBCUSTOMSQLITE
-    /// An ordering term for ascending order (nulls last).
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
     public var ascNullsLast: SQLOrdering {
         .ascNullsLast(sqlExpression)
     }
     
-    /// An ordering term for descending order (nulls first).
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
     public var descNullsFirst: SQLOrdering {
         .descNullsFirst(sqlExpression)
     }
     #elseif !GRDBCIPHER
-    /// An ordering term for ascending order (nulls last).
-    @available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
+    @available(OSX 10.16, iOS 14, tvOS 14, watchOS 7, *)
     public var ascNullsLast: SQLOrdering {
         .ascNullsLast(sqlExpression)
     }
     
-    /// An ordering term for descending order (nulls first).
-    @available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
+    /// Returns a value that can be used as an argument to QueryInterfaceRequest.order()
+    ///
+    /// See <https://github.com/groue/GRDB.swift/#the-query-interface>
+    @available(OSX 10.16, iOS 14, tvOS 14, watchOS 7, *)
     public var descNullsFirst: SQLOrdering {
         .descNullsFirst(sqlExpression)
     }
@@ -2322,36 +1719,41 @@ extension SQLSpecificExpressible {
 
 // MARK: - SQL Selection Support
 
+/// :nodoc:
 extension SQLSpecificExpressible {
-    /// Returns an aliased result column.
+    /// Give the expression the given SQL name.
     ///
     /// For example:
     ///
-    /// ```swift
-    /// // SELECT (score + bonus) AS totalScore FROM player
-    /// let totalScore = (Column("score") * Column("bonus")).forKey("totalScore")
-    /// let request = Player.select(totalScore)
-    /// ```
-    ///
-    /// If you need to refer to the aliased column in another part of a request,
-    /// use ``ColumnExpression/detached``. For example:
-    ///
-    /// ```swift
-    /// // SELECT (score + bonus) AS totalScore
-    /// // FROM player
-    /// // ORDER BY totalScore
-    /// let request = Player
-    ///     .select(totalScore)
-    ///     .order(Column("totalScore").detached)
-    /// ```
+    ///     // SELECT (width * height) AS area FROM shape
+    ///     let area = (Column("width") * Column("height")).forKey("area")
+    ///     let request = Shape.select(area)
+    ///     if let row = try Row.fetchOne(db, request) {
+    ///         let area: Int = row["area"]
+    ///     }
     public func forKey(_ key: String) -> SQLSelection {
         .aliasedExpression(sqlExpression, key)
     }
     
-    /// Returns an aliased column with the same name as the coding key.
+    /// Give the expression the same SQL name as the coding key.
     ///
-    /// See <doc:SQLSpecificExpressible/forKey(_:)-3xk0>.
-    public func forKey(_ key: some CodingKey) -> SQLSelection {
+    /// For example:
+    ///
+    ///     struct Shape: Decodable, FetchableRecord, TableRecord {
+    ///         let width: Int
+    ///         let height: Int
+    ///         let area: Int
+    ///
+    ///         static let databaseSelection: [SQLSelectable] = [
+    ///             Column(CodingKeys.width),
+    ///             Column(CodingKeys.height),
+    ///             (Column(CodingKeys.width) * Column(CodingKeys.height)).forKey(CodingKeys.area),
+    ///         ]
+    ///     }
+    ///
+    ///     // SELECT width, height, (width * height) AS area FROM shape
+    ///     let shapes: [Shape] = try Shape.fetchAll(db)
+    public func forKey(_ key: CodingKey) -> SQLSelection {
         forKey(key.stringValue)
     }
 }
@@ -2364,11 +1766,7 @@ extension SQLSpecificExpressible {
     ///
     /// For example:
     ///
-    /// ```swift
-    /// // SELECT * FROM player
-    /// // WHERE email = 'contact@example.com'  COLLATE NOCASE
-    /// Player.filter(Column("email").collating(.nocase) == "contact@example.com")
-    /// ```
+    ///     Player.filter(Column("email").collating(.nocase) == "contact@example.com")
     public func collating(_ collation: Database.CollationName) -> SQLExpression {
         .collated(sqlExpression, collation)
     }
@@ -2377,9 +1775,7 @@ extension SQLSpecificExpressible {
     ///
     /// For example:
     ///
-    /// ```swift
-    /// Player.order(Column("name").collating(.localizedStandardCompare))
-    /// ```
+    ///     Player.filter(Column("name").collating(.localizedStandardCompare) == "Hervé")
     public func collating(_ collation: DatabaseCollation) -> SQLExpression {
         .collated(sqlExpression, Database.CollationName(rawValue: collation.name))
     }

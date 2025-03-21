@@ -1,6 +1,6 @@
 import Foundation
 
-/// A class that serializes accesses to an SQLite connection.
+/// A class that serializes accesses to a database.
 final class SerializedDatabase {
     /// The database connection
     private let db: Database
@@ -9,13 +9,10 @@ final class SerializedDatabase {
     var configuration: Configuration { db.configuration }
     
     /// The path to the database file
-    let path: String
+    var path: String
     
     /// The dispatch queue
     private let queue: DispatchQueue
-    
-    /// If true, overrides `configuration.allowsUnsafeTransactions`.
-    private var allowsUnsafeTransactions = false
     
     init(
         path: String,
@@ -50,11 +47,7 @@ final class SerializedDatabase {
             path: path,
             description: identifier,
             configuration: config)
-        if config.readonly {
-            self.queue = configuration.makeReaderDispatchQueue(label: identifier)
-        } else {
-            self.queue = configuration.makeWriterDispatchQueue(label: identifier)
-        }
+        self.queue = configuration.makeDispatchQueue(label: identifier)
         SchedulingWatchdog.allowDatabase(db, onQueue: queue)
         try queue.sync {
             do {
@@ -66,7 +59,7 @@ final class SerializedDatabase {
                 //
                 // So let's close the database now. The deinitializer
                 // will only close the database if needed.
-                db.close_v2()
+                db.close()
                 throw error
             }
         }
@@ -75,29 +68,14 @@ final class SerializedDatabase {
     deinit {
         // Database may be deallocated in its own queue: allow reentrancy
         reentrantSync { db in
-            db.close_v2()
+            db.close()
         }
     }
     
-    /// Executes database operations, returns their result after they have
-    /// finished executing, and allows or forbids long-lived transactions.
+    /// Synchronously executes a block the serialized dispatch queue, and
+    /// returns its result.
     ///
-    /// This method is not reentrant.
-    ///
-    /// - parameter allowingLongLivedTransaction: When true, the
-    ///   ``Configuration/allowsUnsafeTransactions`` configuration flag is
-    ///   ignored until this method is called again with false.
-    func sync<T>(allowingLongLivedTransaction: Bool, _ body: (Database) throws -> T) rethrows -> T {
-        try sync { db in
-            self.allowsUnsafeTransactions = allowingLongLivedTransaction
-            return try body(db)
-        }
-    }
-    
-    /// Executes database operations, and returns their result after they
-    /// have finished executing.
-    ///
-    /// This method is not reentrant.
+    /// This method is *not* reentrant.
     func sync<T>(_ block: (Database) throws -> T) rethrows -> T {
         // Three different cases:
         //
@@ -140,23 +118,8 @@ final class SerializedDatabase {
         }
     }
     
-    /// Executes database operations, returns their result after they have
-    /// finished executing, and allows or forbids long-lived transactions.
-    ///
-    /// This method is reentrant.
-    ///
-    /// - parameter allowingLongLivedTransaction: When true, the
-    ///   ``Configuration/allowsUnsafeTransactions`` configuration flag is
-    ///   ignored until this method is called again with false.
-    func reentrantSync<T>(allowingLongLivedTransaction: Bool, _ body: (Database) throws -> T) rethrows -> T {
-        try reentrantSync { db in
-            self.allowsUnsafeTransactions = allowingLongLivedTransaction
-            return try body(db)
-        }
-    }
-    
-    /// Executes database operations, and returns their result after they
-    /// have finished executing.
+    /// Synchronously executes a block the serialized dispatch queue, and
+    /// returns its result.
     ///
     /// This method is reentrant.
     func reentrantSync<T>(_ block: (Database) throws -> T) rethrows -> T {
@@ -222,11 +185,24 @@ final class SerializedDatabase {
         }
     }
     
-    /// Schedules database operations for execution, and returns immediately.
+    /// Asynchronously executes a block in the serialized dispatch queue.
     func async(_ block: @escaping (Database) -> Void) {
         queue.async {
             block(self.db)
             self.preconditionNoUnsafeTransactionLeft(self.db)
+        }
+    }
+    
+    /// Asynchronously executes a block in the serialized dispatch queue,
+    /// without retaining self.
+    func weakAsync(_ block: @escaping (Database?) -> Void) {
+        queue.async { [weak self] in
+            if let self = self {
+                block(self.db)
+                self.preconditionNoUnsafeTransactionLeft(self.db)
+            } else {
+                block(nil)
+            }
         }
     }
     
@@ -275,14 +251,9 @@ final class SerializedDatabase {
         line: UInt = #line)
     {
         GRDBPrecondition(
-            allowsUnsafeTransactions || configuration.allowsUnsafeTransactions || !db.isInsideTransaction,
+            configuration.allowsUnsafeTransactions || !db.isInsideTransaction,
             message(),
             file: file,
             line: line)
     }
 }
-
-// @unchecked because the wrapped `Database` itself is not Sendable.
-// It happens the job of SerializedDatabase is precisely to provide thread-safe
-// access to `Database`.
-extension SerializedDatabase: @unchecked Sendable { }

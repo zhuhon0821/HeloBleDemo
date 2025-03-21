@@ -1,8 +1,9 @@
-/// An observable region of the database.
+/// DatabaseRegion defines a region in the database. DatabaseRegion is dedicated
+/// to help transaction observers recognize impactful database changes in their
+/// `observes(eventsOfKind:)` and `databaseDidChange(with:)` methods.
 ///
-/// A `DatabaseRegion` is the union of any number of "table regions", which can
-/// cover a full table, or the combination of columns and rows identified by
-/// their rowids:
+/// A database region is the union of any number of "table regions", which can
+/// cover a full table, or the combination of columns and rows:
 ///
 ///     |Table1 |   |Table2 |   |Table3 |   |Table4 |   |Table5 |
 ///     |-------|   |-------|   |-------|   |-------|   |-------|
@@ -11,36 +12,24 @@
 ///     |x|x|x|x|   |x| | | |   | | | | |   |x|x| |x|   | | | | |
 ///     |x|x|x|x|   |x| | | |   | | | | |   | | | | |   | | | | |
 ///
-/// It is dedicated to help ``TransactionObserver`` types detect impactful
-/// database changes.
+/// To create a database region, you use one of those methods:
 ///
-/// You get `DatabaseRegion` instances from a ``DatabaseRegionConvertible``
-/// value, a prepared ``Statement``, or from the initializers described below.
+/// - `DatabaseRegion.fullDatabase`: the region that covers all database tables.
 ///
-/// ## Topics
+/// - `DatabaseRegion()`: the empty region.
 ///
-/// ### Creating Regions
+/// - `DatabaseRegion(table:)`: the region that covers one database table.
 ///
-/// - ``fullDatabase-3ir3p``
-/// - ``init()``
+/// - `Statement.databaseRegion`:
 ///
-/// ### Instance Properties
+///         let statement = try db.makeStatement(sql: "SELECT name, score FROM player")
+///         let region = statement.databaseRegion
 ///
-/// - ``isEmpty``
-/// - ``isFullDatabase``
+/// - `FetchRequest.databaseRegion(_:)`
 ///
-/// ### Combining Regions
-///
-/// - ``formUnion(_:)``
-/// - ``union(_:)``
-///
-/// ### Detecting Database Changes
-///
-/// Use those methods from ``TransactionObserver`` methods.
-///
-/// - ``isModified(byEventsOfKind:)``
-/// - ``isModified(by:)``
-public struct DatabaseRegion {
+///         let request = Player.filter(key: 1)
+///         let region = try request.databaseRegion(db)
+public struct DatabaseRegion: CustomStringConvertible, Equatable {
     private let tableRegions: [CaseInsensitiveIdentifier: TableRegion]?
     
     private init(tableRegions: [CaseInsensitiveIdentifier: TableRegion]?) {
@@ -49,22 +38,24 @@ public struct DatabaseRegion {
     
     /// Returns whether the region is empty.
     public var isEmpty: Bool {
-        guard let tableRegions else {
+        guard let tableRegions = tableRegions else {
             // full database
             return false
         }
         return tableRegions.isEmpty
     }
     
-    /// Returns whether the region covers the full database.
+    /// Returns whether the region covers the full database: all columns and all
+    /// rows from all tables.
     public var isFullDatabase: Bool {
         tableRegions == nil
     }
     
-    /// The region that covers the full database.
+    /// The region that covers the full database: all columns and all rows
+    /// from all tables.
     public static let fullDatabase = DatabaseRegion(tableRegions: nil)
     
-    /// The empty database region.
+    /// Creates an empty database region.
     public init() {
         self.init(tableRegions: [:])
     }
@@ -72,7 +63,7 @@ public struct DatabaseRegion {
     /// Creates a region that spans all rows and columns of a database table.
     ///
     /// - parameter table: A table name.
-    init(table: String) {
+    public init(table: String) {
         let table = CaseInsensitiveIdentifier(rawValue: table)
         self.init(tableRegions: [table: TableRegion(columns: nil, rowIds: nil)])
     }
@@ -96,7 +87,7 @@ public struct DatabaseRegion {
     /// this intersection. It is currently only used as support for
     /// the isModified(byEventsOfKind:) method.
     func intersection(_ other: DatabaseRegion) -> DatabaseRegion {
-        guard let tableRegions else { return other }
+        guard let tableRegions = tableRegions else { return other }
         guard let otherTableRegions = other.tableRegions else { return self }
         
         var tableRegionsIntersection: [CaseInsensitiveIdentifier: TableRegion] = [:]
@@ -114,7 +105,7 @@ public struct DatabaseRegion {
     
     /// Only keeps those rowIds in the given table
     func tableIntersection(_ table: String, rowIds: Set<Int64>) -> DatabaseRegion {
-        guard var tableRegions else {
+        guard var tableRegions = tableRegions else {
             return DatabaseRegion(table: table, rowIds: rowIds)
         }
         
@@ -134,7 +125,7 @@ public struct DatabaseRegion {
     
     /// Returns the union of this region and the given one.
     public func union(_ other: DatabaseRegion) -> DatabaseRegion {
-        guard let tableRegions else { return .fullDatabase }
+        guard let tableRegions = tableRegions else { return .fullDatabase }
         guard let otherTableRegions = other.tableRegions else { return .fullDatabase }
         
         var tableRegionsUnion: [CaseInsensitiveIdentifier: TableRegion] = [:]
@@ -169,17 +160,17 @@ public struct DatabaseRegion {
         // the observed region, we optimize database observation.
         //
         // And by canonicalizing table names, we remove views, and help the
-        // `isModified` methods. (TODO: is this comment still accurate?
-        // Isn't it about providing TransactionObserver.observes() with
-        // real tables names, instead?)
+        // `isModified` methods.
         try ignoringInternalSQLiteTables().canonicalTables(db)
     }
     
     /// Returns a region only made of actual tables with their canonical names.
+    /// Canonical names help the `isModified` methods.
     ///
-    /// This method removes views.
-    func canonicalTables(_ db: Database) throws -> DatabaseRegion {
-        guard let tableRegions else { return .fullDatabase }
+    /// This method removes views (assuming no table exists with the same name
+    /// as a view).
+    private func canonicalTables(_ db: Database) throws -> DatabaseRegion {
+        guard let tableRegions = tableRegions else { return .fullDatabase }
         var region = DatabaseRegion()
         for (table, tableRegion) in tableRegions {
             if let canonicalTableName = try db.canonicalTableName(table.rawValue) {
@@ -192,7 +183,7 @@ public struct DatabaseRegion {
     
     /// Returns a region which doesn't contain any SQLite internal table.
     private func ignoringInternalSQLiteTables() -> DatabaseRegion {
-        guard let tableRegions else { return .fullDatabase }
+        guard let tableRegions = tableRegions else { return .fullDatabase }
         let filteredRegions = tableRegions.filter {
             !Database.isSQLiteInternalTable($0.key.rawValue)
         }
@@ -216,7 +207,7 @@ extension DatabaseRegion {
     ///   in the TransactionObserver.observes(eventsOfKind:) method, by calling
     ///   region.isModified(byEventsOfKind:)
     public func isModified(by event: DatabaseEvent) -> Bool {
-        guard let tableRegions else {
+        guard let tableRegions = tableRegions else {
             // Full database: all changes are impactful
             return true
         }
@@ -233,47 +224,11 @@ extension DatabaseRegion {
         }
         return tableRegion.contains(rowID: event.rowID)
     }
-    
-    /// Returns an array of all event kinds that can impact this region.
-    ///
-    /// - precondition: the region is canonical.
-    func impactfulEventKinds(_ db: Database) throws -> [DatabaseEventKind] {
-        if let tableRegions {
-            return try tableRegions.flatMap { (table, tableRegion) -> [DatabaseEventKind] in
-                let tableName = table.rawValue // canonical table name
-                let columnNames: Set<String>
-                if let columns = tableRegion.columns {
-                    columnNames = Set(columns.map(\.rawValue))
-                } else {
-                    columnNames = try Set(db.columns(in: tableName).map(\.name))
-                }
-                
-                return [
-                    DatabaseEventKind.delete(tableName: tableName),
-                    DatabaseEventKind.insert(tableName: tableName),
-                    DatabaseEventKind.update(tableName: tableName, columnNames: columnNames),
-                ]
-            }
-        } else {
-            // full database
-            return try db.schemaIdentifiers().flatMap { schemaIdentifier in
-                let schema = try db.schema(schemaIdentifier)
-                return try schema.objects
-                    .filter { $0.type == .table }
-                    .flatMap { table in
-                        let columnNames = try Set(db.columns(in: table.name).map(\.name))
-                        return [
-                            DatabaseEventKind.delete(tableName: table.name),
-                            DatabaseEventKind.insert(tableName: table.name),
-                            DatabaseEventKind.update(tableName: table.name, columnNames: columnNames),
-                        ]
-                    }
-            }
-        }
-    }
 }
 
-extension DatabaseRegion: Equatable {
+// Equatable
+extension DatabaseRegion {
+    /// :nodoc:
     public static func == (lhs: DatabaseRegion, rhs: DatabaseRegion) -> Bool {
         switch (lhs.tableRegions, rhs.tableRegions) {
         case (nil, nil):
@@ -294,9 +249,11 @@ extension DatabaseRegion: Equatable {
     }
 }
 
-extension DatabaseRegion: CustomStringConvertible {
+// CustomStringConvertible
+extension DatabaseRegion {
+    /// :nodoc:
     public var description: String {
-        guard let tableRegions else {
+        guard let tableRegions = tableRegions else {
             return "full database"
         }
         if tableRegions.isEmpty {
@@ -304,7 +261,7 @@ extension DatabaseRegion: CustomStringConvertible {
         }
         return tableRegions
             .sorted(by: { (l, r) in l.key.rawValue < r.key.rawValue })
-            .map { (table, tableRegion) in
+            .map({ (table, tableRegion) in
                 var desc = table.rawValue
                 if let columns = tableRegion.columns {
                     desc += "(" + columns.map(\.rawValue).sorted().joined(separator: ",") + ")"
@@ -315,7 +272,7 @@ extension DatabaseRegion: CustomStringConvertible {
                     desc += "[" + rowIds.sorted().map { "\($0)" }.joined(separator: ",") + "]"
                 }
                 return desc
-            }
+            })
             .joined(separator: ",")
     }
 }
@@ -325,8 +282,8 @@ private struct TableRegion: Equatable {
     var rowIds: Set<Int64>? // nil means "all rowids"
     
     var isEmpty: Bool {
-        if let columns, columns.isEmpty { return true }
-        if let rowIds, rowIds.isEmpty { return true }
+        if let columns = columns, columns.isEmpty { return true }
+        if let rowIds = rowIds, rowIds.isEmpty { return true }
         return false
     }
     
@@ -371,7 +328,7 @@ private struct TableRegion: Equatable {
     }
     
     func contains(rowID: Int64) -> Bool {
-        guard let rowIds else {
+        guard let rowIds = rowIds else {
             return true
         }
         return rowIds.contains(rowID)
@@ -380,42 +337,10 @@ private struct TableRegion: Equatable {
 
 // MARK: - DatabaseRegionConvertible
 
-/// A type that operates on a specific ``DatabaseRegion``.
+/// `DatabaseRegionConvertible` is the protocol for values that can be turned
+/// into a `DatabaseRegion`.
 ///
-/// A `DatabaseRegionConvertible` instance feeds database observation tools such
-/// as ``DatabaseRegionObservation`` and ``ValueObservation``:
-///
-/// ```swift
-/// // An observation triggered by all changes to the database
-/// DatabaseRegionObservation(tracking: .fullDatabase)
-///
-/// // An observation triggered by all changes to the 'player' table
-/// DatabaseRegionObservation(tracking: Table("player"))
-///
-/// // An observation triggered by all changes to the row
-/// // with rowid 1 in the 'player' table
-/// DatabaseRegionObservation(tracking: Player.filter(id: 1))
-///
-/// // An observation triggered by all changes to the 'score' column
-/// // of the 'player' table
-/// DatabaseRegionObservation(tracking: SQLRequest("SELECT score FROM player"))
-/// ```
-///
-/// Specifying a region from a ``FetchRequest`` does not execute the request.
-/// In the above example, `Player.filter(id: 1)` and `SELECT score FROM player`
-/// are only compiled by SQLite, so that GRDB can understand the tables, rows,
-/// and columns that constitute the database region.
-///
-/// ## Topics
-///
-/// ### Creating a DatabaseRegion
-///
-/// - ``fullDatabase``
-/// - ``databaseRegion(_:)``
-///
-/// ### Supporting Types
-///
-///  - ``AnyDatabaseRegionConvertible``
+/// Such values specify the region obserbed by `DatabaseRegionObservation`.
 public protocol DatabaseRegionConvertible {
     /// Returns a database region.
     ///
@@ -423,13 +348,8 @@ public protocol DatabaseRegionConvertible {
     func databaseRegion(_ db: Database) throws -> DatabaseRegion
 }
 
-extension DatabaseRegionConvertible where Self == DatabaseRegion {
-    /// The region that covers the full database: all columns and all rows
-    /// from all tables.
-    public static var fullDatabase: Self { DatabaseRegion.fullDatabase }
-}
-
 extension DatabaseRegion: DatabaseRegionConvertible {
+    /// :nodoc:
     public func databaseRegion(_ db: Database) throws -> DatabaseRegion {
         self
     }
@@ -443,10 +363,11 @@ public struct AnyDatabaseRegionConvertible: DatabaseRegionConvertible {
         _region = region
     }
     
-    public init(_ region: some DatabaseRegionConvertible) {
-        _region = region.databaseRegion
+    public init(_ region: DatabaseRegionConvertible) {
+        _region = { try region.databaseRegion($0) }
     }
     
+    /// :nodoc:
     public func databaseRegion(_ db: Database) throws -> DatabaseRegion {
         try _region(db)
     }
@@ -461,7 +382,7 @@ extension DatabaseRegion {
         }
     }
     
-    static func union(_ regions: [any DatabaseRegionConvertible]) -> (Database) throws -> DatabaseRegion {
+    static func union(_ regions: [DatabaseRegionConvertible]) -> (Database) throws -> DatabaseRegion {
         return { db in
             try regions.reduce(into: DatabaseRegion()) { union, region in
                 try union.formUnion(region.databaseRegion(db))

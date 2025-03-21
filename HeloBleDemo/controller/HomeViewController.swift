@@ -100,5 +100,6 @@ extension HomeViewController {
         let p = self.devices[indexPath.item]
         BleManager.sharedInstance.connectBleDevice(peripheral: p)
         BleManager.sharedInstance.stopScanBleDevice()
+        
     }
 }

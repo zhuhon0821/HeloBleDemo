@@ -2,9 +2,9 @@ import Foundation
 
 /// An SQLite result code.
 ///
-/// Related SQLite documentation: <https://www.sqlite.org/rescode.html>
-public struct ResultCode: RawRepresentable, Equatable {
-    /// The raw SQLite result code.
+/// See <https://www.sqlite.org/rescode.html>
+public struct ResultCode: RawRepresentable, Equatable, CustomStringConvertible {
+    /// The raw SQLite result code
     public let rawValue: CInt
     
     /// Creates a `ResultCode` from a raw SQLite result code.
@@ -12,14 +12,11 @@ public struct ResultCode: RawRepresentable, Equatable {
         self.rawValue = rawValue
     }
     
-    /// A primary result code limited to the least significant 8 bits.
+    /// A result code limited to the least significant 8 bits of the receiver.
+    /// See <https://www.sqlite.org/rescode.html> for more information.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// let resultCode = .SQLITE_CONSTRAINT_FOREIGNKEY
-    /// resultCode.primaryResultCode == .SQLITE_CONSTRAINT // true
-    /// ```
+    ///     let resultCode = .SQLITE_CONSTRAINT_FOREIGNKEY
+    ///     resultCode.primaryResultCode == .SQLITE_CONSTRAINT // true
     public var primaryResultCode: ResultCode {
         ResultCode(rawValue: rawValue & 0xFF)
     }
@@ -31,15 +28,11 @@ public struct ResultCode: RawRepresentable, Equatable {
     /// Primary result codes match themselves and their extended result codes,
     /// while extended result codes match only themselves:
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// switch error.extendedResultCode {
-    /// case .SQLITE_CONSTRAINT_FOREIGNKEY: // foreign key constraint error
-    /// case .SQLITE_CONSTRAINT:            // any other constraint error
-    /// default:                            // any other database error
-    /// }
-    /// ```
+    ///     switch error.extendedResultCode {
+    ///     case .SQLITE_CONSTRAINT_FOREIGNKEY: // foreign key constraint error
+    ///     case .SQLITE_CONSTRAINT:            // any other constraint error
+    ///     default:                            // any other database error
+    ///     }
     public static func ~= (pattern: ResultCode, code: ResultCode) -> Bool {
         if pattern.isPrimary {
             return pattern == code.primaryResultCode
@@ -123,22 +116,17 @@ public struct ResultCode: RawRepresentable, Equatable {
     public static let SQLITE_IOERR_BEGIN_ATOMIC      = ResultCode(rawValue: (SQLITE_IOERR.rawValue | (29<<8)))
     public static let SQLITE_IOERR_COMMIT_ATOMIC     = ResultCode(rawValue: (SQLITE_IOERR.rawValue | (30<<8)))
     public static let SQLITE_IOERR_ROLLBACK_ATOMIC   = ResultCode(rawValue: (SQLITE_IOERR.rawValue | (31<<8)))
-    public static let SQLITE_IOERR_DATA              = ResultCode(rawValue: (SQLITE_IOERR.rawValue | (32<<8)))
-    public static let SQLITE_IOERR_CORRUPTFS         = ResultCode(rawValue: (SQLITE_IOERR.rawValue | (33<<8)))
     public static let SQLITE_LOCKED_SHAREDCACHE      = ResultCode(rawValue: (SQLITE_LOCKED.rawValue |  (1<<8)))
     public static let SQLITE_LOCKED_VTAB             = ResultCode(rawValue: (SQLITE_LOCKED.rawValue |  (2<<8)))
     public static let SQLITE_BUSY_RECOVERY           = ResultCode(rawValue: (SQLITE_BUSY.rawValue |  (1<<8)))
     public static let SQLITE_BUSY_SNAPSHOT           = ResultCode(rawValue: (SQLITE_BUSY.rawValue |  (2<<8)))
-    public static let SQLITE_BUSY_TIMEOUT            = ResultCode(rawValue: (SQLITE_BUSY.rawValue |  (3<<8)))
     public static let SQLITE_CANTOPEN_NOTEMPDIR      = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (1<<8)))
     public static let SQLITE_CANTOPEN_ISDIR          = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (2<<8)))
     public static let SQLITE_CANTOPEN_FULLPATH       = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (3<<8)))
     public static let SQLITE_CANTOPEN_CONVPATH       = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (4<<8)))
     public static let SQLITE_CANTOPEN_DIRTYWAL       = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (5<<8))) /* Not Used */
-    public static let SQLITE_CANTOPEN_SYMLINK        = ResultCode(rawValue: (SQLITE_CANTOPEN.rawValue | (6<<8)))
     public static let SQLITE_CORRUPT_VTAB            = ResultCode(rawValue: (SQLITE_CORRUPT.rawValue | (1<<8)))
     public static let SQLITE_CORRUPT_SEQUENCE        = ResultCode(rawValue: (SQLITE_CORRUPT.rawValue | (2<<8)))
-    public static let SQLITE_CORRUPT_INDEX           = ResultCode(rawValue: (SQLITE_CORRUPT.rawValue | (3<<8)))
     public static let SQLITE_READONLY_RECOVERY       = ResultCode(rawValue: (SQLITE_READONLY.rawValue | (1<<8)))
     public static let SQLITE_READONLY_CANTLOCK       = ResultCode(rawValue: (SQLITE_READONLY.rawValue | (2<<8)))
     public static let SQLITE_READONLY_ROLLBACK       = ResultCode(rawValue: (SQLITE_READONLY.rawValue | (3<<8)))
@@ -156,14 +144,11 @@ public struct ResultCode: RawRepresentable, Equatable {
     public static let SQLITE_CONSTRAINT_UNIQUE       = ResultCode(rawValue: (SQLITE_CONSTRAINT.rawValue | (8<<8)))
     public static let SQLITE_CONSTRAINT_VTAB         = ResultCode(rawValue: (SQLITE_CONSTRAINT.rawValue | (9<<8)))
     public static let SQLITE_CONSTRAINT_ROWID        = ResultCode(rawValue: (SQLITE_CONSTRAINT.rawValue | (10<<8)))
-    public static let SQLITE_CONSTRAINT_PINNED       = ResultCode(rawValue: (SQLITE_CONSTRAINT.rawValue | (11<<8)))
-    public static let SQLITE_CONSTRAINT_DATATYPE     = ResultCode(rawValue: (SQLITE_CONSTRAINT.rawValue | (12<<8)))
     public static let SQLITE_NOTICE_RECOVER_WAL      = ResultCode(rawValue: (SQLITE_NOTICE.rawValue | (1<<8)))
     public static let SQLITE_NOTICE_RECOVER_ROLLBACK = ResultCode(rawValue: (SQLITE_NOTICE.rawValue | (2<<8)))
     public static let SQLITE_WARNING_AUTOINDEX       = ResultCode(rawValue: (SQLITE_WARNING.rawValue | (1<<8)))
     public static let SQLITE_AUTH_USER               = ResultCode(rawValue: (SQLITE_AUTH.rawValue | (1<<8)))
     public static let SQLITE_OK_LOAD_PERMANENTLY     = ResultCode(rawValue: (SQLITE_OK.rawValue | (1<<8)))
-    public static let SQLITE_OK_SYMLINK              = ResultCode(rawValue: (SQLITE_OK.rawValue | (2<<8)))
     // swiftlint:enable operator_usage_whitespace line_length
 }
 
@@ -173,32 +158,30 @@ extension ResultCode {
     /// Primary result codes match themselves and their extended result codes,
     /// while extended result codes match only themselves.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// do {
-    ///     try ...
-    /// } catch ResultCode.SQLITE_CONSTRAINT_FOREIGNKEY {
-    ///     // foreign key constraint error
-    /// } catch ResultCode.SQLITE_CONSTRAINT {
-    ///     // any other constraint error
-    /// } catch {
-    ///     // any other database error
-    /// }
-    /// ```
+    ///     do {
+    ///         try ...
+    ///     } catch ResultCode.SQLITE_CONSTRAINT_FOREIGNKEY {
+    ///         // foreign key constraint error
+    ///     } catch ResultCode.SQLITE_CONSTRAINT {
+    ///         // any other constraint error
+    ///     } catch {
+    ///         // any other database error
+    ///     }
     public static func ~= (lhs: Self, rhs: Error) -> Bool {
         guard let error = rhs as? DatabaseError else { return false }
         return lhs ~= error.extendedResultCode
     }
 }
 
-extension ResultCode: CustomStringConvertible {
+// CustomStringConvertible
+extension ResultCode {
     var errorString: String? {
         String(cString: sqlite3_errstr(rawValue))
     }
     
+    /// :nodoc:
     public var description: String {
-        if let errorString {
+        if let errorString = errorString {
             return "\(rawValue) (\(errorString))"
         } else {
             return "\(rawValue)"
@@ -206,159 +189,59 @@ extension ResultCode: CustomStringConvertible {
     }
 }
 
-extension ResultCode: Sendable { }
-
-/// A `DatabaseError` describes an SQLite error.
-///
-/// For example:
-///
-/// ```swift
-/// do {
-///     try player.insert(db)
-/// } catch let error as DatabaseError {
-///     print(error) // prints debugging information
-///     
-///     switch error {
-///     case DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY:
-///         // foreign key constraint error
-///     case DatabaseError.SQLITE_CONSTRAINT:
-///         // any other constraint error
-///     default:
-///         // any other database error
-///     }
-/// }
-/// ```
-///
-/// The above example can also be written in a shorter way:
-///
-/// ```swift
-/// do {
-///     try player.insert(db)
-/// } catch DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY {
-///     // foreign key constraint error
-/// } catch DatabaseError.SQLITE_CONSTRAINT {
-///     // any other constraint error
-/// } catch {
-///     // any other database error
-/// }
-/// ```
-///
-/// Related SQLite documentation: <https://www.sqlite.org/rescode.html>
-///
-/// ## Topics
-///
-/// ### Creating DatabaseError
-///
-/// - ``init(resultCode:message:sql:arguments:publicStatementArguments:)``
-/// - ``ResultCode``
-///
-/// ### Error Information
-///
-/// - ``arguments``
-/// - ``extendedResultCode``
-/// - ``isInterruptionError``
-/// - ``message``
-/// - ``resultCode``
-/// - ``sql``
-///
-/// ### Converting DatabaseError to String
-///
-/// - ``description``
-/// - ``expandedDescription``
-public struct DatabaseError: Error {
-    /// The SQLite primary result code.
+/// DatabaseError wraps an SQLite error.
+public struct DatabaseError: Error, CustomStringConvertible, CustomNSError {
+    
+    /// The SQLite error code (see
+    /// <https://www.sqlite.org/rescode.html#primary_result_code_list>).
+    ///
+    ///     do {
+    ///         ...
+    ///     } catch let error as DatabaseError where error.resultCode == .SQL_CONSTRAINT {
+    ///         // A constraint error
+    ///     }
     ///
     /// This property returns a "primary result code", that is to say the least
-    /// significant 8 bits of any SQLite result code.
+    /// significant 8 bits of any SQLite result code. See
+    /// <https://www.sqlite.org/rescode.html> for more information.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// do {
-    ///     ...
-    /// } catch let error as DatabaseError where error.resultCode == .SQL_CONSTRAINT {
-    ///     // A constraint error
-    /// }
-    /// ```
-    ///
-    /// The above example can also be written in a shorter way:
-    ///
-    /// ```swift
-    /// do {
-    ///     ...
-    /// } catch DatabaseError.SQL_CONSTRAINT {
-    ///     // A constraint error
-    /// }
-    /// ```
-    ///
-    /// See also ``extendedResultCode``.
-    ///
-    /// Related SQLite documentation: <https://www.sqlite.org/rescode.html>
+    /// See also `extendedResultCode`.
     public var resultCode: ResultCode {
         extendedResultCode.primaryResultCode
     }
     
-    /// The SQLite extended error code.
+    /// The SQLite extended error code (see
+    /// <https://www.sqlite.org/rescode.html#extended_result_code_list>).
     ///
-    /// For example:
+    ///     do {
+    ///         ...
+    ///     } catch let error as DatabaseError where error.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY {
+    ///         // A foreign key constraint error
+    ///     }
     ///
-    /// ```swift
-    /// do {
-    ///     ...
-    /// } catch let error as DatabaseError where error.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY {
-    ///     // A foreign key constraint error
-    /// }
-    /// ```
-    ///
-    /// The above example can also be written in a shorter way:
-    ///
-    /// ```swift
-    /// do {
-    ///     ...
-    /// } catch DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY {
-    ///     // A foreign key constraint error
-    /// }
-    /// ```
-    ///
-    /// See also ``resultCode``.
-    ///
-    /// Related SQLite documentation: <https://www.sqlite.org/rescode.html>
+    /// See also `resultCode`.
     public let extendedResultCode: ResultCode
     
     /// The SQLite error message.
     public let message: String?
     
-    /// The SQL query that yielded the error.
+    /// The SQL query that yielded the error (if relevant).
     public let sql: String?
     
-    /// The query arguments that yielded the error.
+    /// The query arguments that yielded the error (if relevant).
     public let arguments: StatementArguments?
     
-    /// See Configuration.publicStatementArguments
-    var publicStatementArguments: Bool
-    
-    /// Creates a `DatabaseError`.
-    ///
-    /// - parameters:
-    ///     - resultCode: A ResultCode (defaults to .SQLITE_ERROR).
-    ///     - message: An eventual error message. If nil, the error message is
-    ///       derived from the result code.
-    ///     - sql: An eventual SQL string.
-    ///     - arguments: Eventual statement arguments.
-    ///     - publicStatementArguments: If false (the default), statement
-    ///       arguments are not visible in the error's ``description`` property.
+    /// Creates a Database Error
     public init(
         resultCode: ResultCode = .SQLITE_ERROR,
         message: String? = nil,
         sql: String? = nil,
-        arguments: StatementArguments? = nil,
-        publicStatementArguments: Bool = false)
+        arguments: StatementArguments? = nil)
     {
         self.extendedResultCode = resultCode
         self.message = message ?? resultCode.errorString
         self.sql = sql
         self.arguments = arguments
-        self.publicStatementArguments = publicStatementArguments
     }
     
     /// Creates a Database Error with a raw CInt result code.
@@ -366,45 +249,12 @@ public struct DatabaseError: Error {
     /// This initializer is not public because library user is not supposed to
     /// be exposed to raw result codes.
     @usableFromInline
-    init(resultCode: CInt, message: String? = nil, sql: String? = nil) {
-        self.init(
-            resultCode: ResultCode(rawValue: resultCode),
-            message: message,
-            sql: sql)
-    }
-    
-    /// Creates a Database Error with a raw CInt result code.
-    ///
-    /// This initializer is not public because library user is not supposed to
-    /// be exposed to raw result codes.
-    @usableFromInline
-    init(
-        resultCode: CInt,
-        message: String? = nil,
-        sql: String? = nil,
-        arguments: StatementArguments?,
-        publicStatementArguments: Bool)
-    {
-        self.init(
-            resultCode: ResultCode(rawValue: resultCode),
-            message: message,
-            sql: sql,
-            arguments: arguments,
-            publicStatementArguments: publicStatementArguments)
+    init(resultCode: CInt, message: String? = nil, sql: String? = nil, arguments: StatementArguments? = nil) {
+        self.init(resultCode: ResultCode(rawValue: resultCode), message: message, sql: sql, arguments: arguments)
     }
     
     static func noSuchTable(_ tableName: String) -> Self {
         DatabaseError(message: "no such table: \(tableName)")
-    }
-    
-    static func noSuchSchema(_ schemaName: String) -> Self {
-        DatabaseError(message: "no such schema: \(schemaName)")
-    }
-}
-
-extension DatabaseError {
-    static func connectionIsClosed() -> Self {
-        DatabaseError(resultCode: .SQLITE_MISUSE, message: "Connection is closed")
     }
 }
 
@@ -475,22 +325,17 @@ extension DatabaseError {
     public static let SQLITE_IOERR_BEGIN_ATOMIC = ResultCode.SQLITE_IOERR_BEGIN_ATOMIC
     public static let SQLITE_IOERR_COMMIT_ATOMIC = ResultCode.SQLITE_IOERR_COMMIT_ATOMIC
     public static let SQLITE_IOERR_ROLLBACK_ATOMIC = ResultCode.SQLITE_IOERR_ROLLBACK_ATOMIC
-    public static let SQLITE_IOERR_DATA = ResultCode.SQLITE_IOERR_DATA
-    public static let SQLITE_IOERR_CORRUPTFS = ResultCode.SQLITE_IOERR_CORRUPTFS
     public static let SQLITE_LOCKED_SHAREDCACHE = ResultCode.SQLITE_LOCKED_SHAREDCACHE
     public static let SQLITE_LOCKED_VTAB = ResultCode.SQLITE_LOCKED_VTAB
     public static let SQLITE_BUSY_RECOVERY = ResultCode.SQLITE_BUSY_RECOVERY
     public static let SQLITE_BUSY_SNAPSHOT = ResultCode.SQLITE_BUSY_SNAPSHOT
-    public static let SQLITE_BUSY_TIMEOUT = ResultCode.SQLITE_BUSY_TIMEOUT
     public static let SQLITE_CANTOPEN_NOTEMPDIR = ResultCode.SQLITE_CANTOPEN_NOTEMPDIR
     public static let SQLITE_CANTOPEN_ISDIR = ResultCode.SQLITE_CANTOPEN_ISDIR
     public static let SQLITE_CANTOPEN_FULLPATH = ResultCode.SQLITE_CANTOPEN_FULLPATH
     public static let SQLITE_CANTOPEN_CONVPATH = ResultCode.SQLITE_CANTOPEN_CONVPATH
     public static let SQLITE_CANTOPEN_DIRTYWAL = ResultCode.SQLITE_CANTOPEN_DIRTYWAL
-    public static let SQLITE_CANTOPEN_SYMLINK = ResultCode.SQLITE_CANTOPEN_SYMLINK
     public static let SQLITE_CORRUPT_VTAB = ResultCode.SQLITE_CORRUPT_VTAB
     public static let SQLITE_CORRUPT_SEQUENCE = ResultCode.SQLITE_CORRUPT_SEQUENCE
-    public static let SQLITE_CORRUPT_INDEX = ResultCode.SQLITE_CORRUPT_INDEX
     public static let SQLITE_READONLY_RECOVERY = ResultCode.SQLITE_READONLY_RECOVERY
     public static let SQLITE_READONLY_CANTLOCK = ResultCode.SQLITE_READONLY_CANTLOCK
     public static let SQLITE_READONLY_ROLLBACK = ResultCode.SQLITE_READONLY_ROLLBACK
@@ -508,25 +353,21 @@ extension DatabaseError {
     public static let SQLITE_CONSTRAINT_UNIQUE = ResultCode.SQLITE_CONSTRAINT_UNIQUE
     public static let SQLITE_CONSTRAINT_VTAB = ResultCode.SQLITE_CONSTRAINT_VTAB
     public static let SQLITE_CONSTRAINT_ROWID = ResultCode.SQLITE_CONSTRAINT_ROWID
-    public static let SQLITE_CONSTRAINT_PINNED = ResultCode.SQLITE_CONSTRAINT_PINNED
-    public static let SQLITE_CONSTRAINT_DATATYPE = ResultCode.SQLITE_CONSTRAINT_DATATYPE
     public static let SQLITE_NOTICE_RECOVER_WAL = ResultCode.SQLITE_NOTICE_RECOVER_WAL
     public static let SQLITE_NOTICE_RECOVER_ROLLBACK = ResultCode.SQLITE_NOTICE_RECOVER_ROLLBACK
     public static let SQLITE_WARNING_AUTOINDEX = ResultCode.SQLITE_WARNING_AUTOINDEX
     public static let SQLITE_AUTH_USER = ResultCode.SQLITE_AUTH_USER
     public static let SQLITE_OK_LOAD_PERMANENTLY = ResultCode.SQLITE_OK_LOAD_PERMANENTLY
-    public static let SQLITE_OK_SYMLINK = ResultCode.SQLITE_OK_SYMLINK
 }
 
 extension DatabaseError {
-    /// A boolean value indicating if the error has code
-    /// `SQLITE_ABORT` or `SQLITE_INTERRUPT`.
+    /// Returns true if the error has code `SQLITE_ABORT` or `SQLITE_INTERRUPT`.
     ///
     /// Such an error can be thrown when a database has been interrupted, or
     /// when the database is suspended.
     ///
-    /// See ``DatabaseReader/interrupt()`` and ``Database/suspendNotification``
-    /// for more information.
+    /// See `DatabaseReader.interrupt()` and `DatabaseReader.suspend()` for
+    /// more information.
     public var isInterruptionError: Bool {
         switch resultCode {
         case .SQLITE_ABORT, .SQLITE_INTERRUPT:
@@ -537,76 +378,36 @@ extension DatabaseError {
     }
 }
 
-extension DatabaseError: CustomStringConvertible {
-    /// The error description.
-    ///
-    /// For example:
-    ///
-    ///     SQLite error 19: NOT NULL constraint failed: player.score
-    ///     - while executing `UPDATE player SET score = ? WHERE email = ?
-    ///
-    /// The format of the error description may change between GRDB releases,
-    /// without notice: don't have your application rely on any specific format.
+// CustomStringConvertible
+extension DatabaseError {
+    /// :nodoc:
     public var description: String {
         var description = "SQLite error \(resultCode.rawValue)"
-        if let message {
+        if let message = message {
             description += ": \(message)"
         }
-        if let sql {
-            description += " - while executing `\(sql.trimmedSQLStatement)`"
+        if let sql = sql {
+            description += " - while executing `\(sql)`"
         }
-        if publicStatementArguments, let arguments, !arguments.isEmpty {
-            description += " with arguments \(arguments)"
-        }
-        return description
-    }
-    
-    /// The error description, where bound parameters, if present, are visible.
-    ///
-    /// For example:
-    ///
-    ///     SQLite error 19: NOT NULL constraint failed: player.score
-    ///     - while executing `UPDATE player SET score = ? WHERE email = ?
-    ///     with arguments [nil, "arthur@example.com"]
-    ///
-    /// The format of the error description may change between GRDB releases,
-    /// without notice: don't have your application rely on any specific format.
-    ///
-    /// - warning: It is your responsibility to prevent sensitive
-    ///   information from leaking in unexpected locations, so use this
-    ///   property with care.
-    public var expandedDescription: String {
-        var description = "SQLite error \(resultCode.rawValue)"
-        if let message {
-            description += ": \(message)"
-        }
-        if let sql {
-            description += " - while executing `\(sql.trimmedSQLStatement)`"
-        }
-        if let arguments, !arguments.isEmpty {
+        if let arguments = arguments, !arguments.isEmpty {
             description += " with arguments \(arguments)"
         }
         return description
     }
 }
 
-extension DatabaseError: CustomNSError {
-    /// Part of the `CustomNSError` conformance.
-    ///
-    /// Returns `GRDB.DatabaseError`.
+// CustomNSError
+extension DatabaseError {
+    
+    /// NSError bridging: the domain of the error.
+    /// :nodoc:
     public static var errorDomain: String { "GRDB.DatabaseError" }
     
-    /// Part of the `CustomNSError` conformance.
-    ///
-    /// Returns the ``extendedResultCode``.
+    /// NSError bridging: the error code within the given domain.
+    /// :nodoc:
     public var errorCode: Int { Int(extendedResultCode.rawValue) }
     
-    /// Part of the `CustomNSError` conformance.
-    public var errorUserInfo: [String: Any] {
-        var userInfo = [NSLocalizedDescriptionKey: description]
-        if let message {
-            userInfo[NSLocalizedFailureReasonErrorKey] = message
-        }
-        return userInfo
-    }
+    /// NSError bridging: the user-info dictionary.
+    /// :nodoc:
+    public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: description] }
 }

@@ -2,9 +2,8 @@ import Foundation
 
 private struct DatabaseValueEncodingContainer: SingleValueEncodingContainer {
     let encode: (DatabaseValue) -> Void
-    let jsonEncoder: JSONEncoder
     
-    var codingPath: [any CodingKey] { [] }
+    var codingPath: [CodingKey] { [] }
     
     /// Encodes a null value.
     ///
@@ -38,32 +37,27 @@ private struct DatabaseValueEncodingContainer: SingleValueEncodingContainer {
     /// - throws: `EncodingError.invalidValue` if the given value is invalid in the current context for this format.
     /// - precondition: May not be called after a previous `self.encode(_:)` call.
     mutating func encode<T>(_ value: T) throws where T: Encodable {
-        if let dbValueConvertible = value as? any DatabaseValueConvertible {
+        if let dbValueConvertible = value as? DatabaseValueConvertible {
             // Prefer DatabaseValueConvertible encoding over Decodable.
             // This allows us to encode Date as String, for example.
             encode(dbValueConvertible.databaseValue)
         } else {
-            try DatabaseValueEncoder(jsonEncoder: jsonEncoder, encode: encode).encode(value)
+            try DatabaseValueEncoder(encode: encode).encode(value)
         }
     }
 }
 
 private class DatabaseValueEncoder: Encoder {
     let encode: (DatabaseValue) -> Void
-    let jsonEncoder: JSONEncoder
     var requiresJSON = false
     
-    init(
-        jsonEncoder: JSONEncoder,
-        encode: @escaping (DatabaseValue) -> Void
-    ) {
-        self.jsonEncoder = jsonEncoder
+    init(encode: @escaping (DatabaseValue) -> Void) {
         self.encode = encode
     }
     
     /// The path of coding keys taken to get to this point in encoding.
     /// A `nil` value indicates an unkeyed container.
-    var codingPath: [any CodingKey] { [] }
+    var codingPath: [CodingKey] { [] }
     
     /// Any contextual information set by the user for encoding.
     var userInfo: [CodingUserInfoKey: Any] = [:]
@@ -110,7 +104,7 @@ private class DatabaseValueEncoder: Encoder {
     /// - precondition: May not be called after a value has been encoded through
     ///   a previous `self.singleValueContainer()` call.
     func singleValueContainer() -> SingleValueEncodingContainer {
-        DatabaseValueEncodingContainer(encode: encode, jsonEncoder: jsonEncoder)
+        DatabaseValueEncodingContainer(encode: encode)
     }
     
     func encode<T: Encodable>(_ value: T) throws {
@@ -121,7 +115,15 @@ private class DatabaseValueEncoder: Encoder {
                 throw JSONRequiredError()
             }
         } catch is JSONRequiredError {
-            let jsonData = try jsonEncoder.encode(value)
+            let encoder = JSONEncoder()
+            encoder.dataEncodingStrategy = .base64
+            encoder.dateEncodingStrategy = .millisecondsSince1970
+            encoder.nonConformingFloatEncodingStrategy = .throw
+            if #available(watchOS 4.0, OSX 10.13, iOS 11.0, tvOS 11.0, *) {
+                // guarantee some stability in order to ease value comparison
+                encoder.outputFormatting = .sortedKeys
+            }
+            let jsonData = try encoder.encode(value)
             
             // Store JSON String in the database for easier debugging and
             // database inspection. Thanks to SQLite weak typing, we won't
@@ -138,11 +140,7 @@ private class DatabaseValueEncoder: Encoder {
 extension DatabaseValueConvertible where Self: Encodable {
     public var databaseValue: DatabaseValue {
         var dbValue: DatabaseValue! = nil
-        try! DatabaseValueEncoder(
-            jsonEncoder: Self.databaseJSONEncoder(),
-            encode: { dbValue = $0 }
-        )
-        .encode(self)
+        try! DatabaseValueEncoder(encode: { dbValue = $0 }).encode(self)
         return dbValue
     }
 }

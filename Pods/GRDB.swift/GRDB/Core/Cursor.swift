@@ -19,9 +19,11 @@ extension RangeReplaceableCollection {
     ///     let strings = try Array(cursor)
     ///
     /// - parameter cursor: The cursor whose elements feed the collection.
-    public init(_ cursor: some Cursor<Element>) throws {
+    public init<C: Cursor>(_ cursor: C) throws where C.Element == Element {
         self.init()
-        try append(contentsOf: cursor)
+        while let element = try cursor.next() {
+            append(element)
+        }
     }
     
     /// Creates a collection containing the elements of a cursor.
@@ -33,23 +35,12 @@ extension RangeReplaceableCollection {
     /// - parameter cursor: The cursor whose elements feed the collection.
     /// - parameter minimumCapacity: Prepares the returned collection to store
     ///   the specified number of elements.
-    public init(_ cursor: some Cursor<Element>, minimumCapacity: Int) throws {
+    public init<C: Cursor>(_ cursor: C, minimumCapacity: Int) throws where C.Element == Element {
         self.init()
         reserveCapacity(minimumCapacity)
-        try append(contentsOf: cursor)
-    }
-    
-    /// Adds the elements of a cursor to the end of this collection.
-    ///
-    /// In case of error, an unspecified amount of elements have been added to
-    /// the collection.
-    ///
-    /// - parameter newElements: The elements to append to the collection.
-    public mutating func append(contentsOf newElements: some Cursor<Element>) throws {
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try newElements.forEach { append($0) }
+        while let element = try cursor.next() {
+            append(element)
+        }
     }
 }
 
@@ -69,10 +60,7 @@ extension Dictionary {
     throws where Value == [C.Element]
     {
         self.init()
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try cursor.forEach { value in
+        while let value = try cursor.next() {
             try self[keyForValue(value), default: []].append(value)
         }
     }
@@ -98,10 +86,7 @@ extension Dictionary {
     throws where Value == [C.Element]
     {
         self.init(minimumCapacity: minimumCapacity)
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try cursor.forEach { value in
+        while let value = try cursor.next() {
             try self[keyForValue(value), default: []].append(value)
         }
     }
@@ -119,12 +104,11 @@ extension Dictionary {
     /// - parameter keysAndValues: A cursor of key-value pairs to use for the
     ///   new dictionary. Every key in `keysAndValues` must be unique.
     /// - precondition: The cursor must not have duplicate keys.
-    public init(uniqueKeysWithValues keysAndValues: some Cursor<(Key, Value)>) throws {
+    public init<C: Cursor>(uniqueKeysWithValues keysAndValues: C)
+    throws where C.Element == (Key, Value)
+    {
         self.init()
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try keysAndValues.forEach { key, value in
+        while let (key, value) = try keysAndValues.next() {
             if updateValue(value, forKey: key) != nil {
                 fatalError("Duplicate values for key: '\(String(describing: key))'")
             }
@@ -149,12 +133,11 @@ extension Dictionary {
     /// - parameter keysAndValues: A cursor of key-value pairs to use for the
     ///   new dictionary. Every key in `keysAndValues` must be unique.
     /// - precondition: The cursor must not have duplicate keys.
-    public init(minimumCapacity: Int, uniqueKeysWithValues keysAndValues: some Cursor<(Key, Value)>) throws {
+    public init<C: Cursor>(minimumCapacity: Int, uniqueKeysWithValues keysAndValues: C)
+    throws where C.Element == (Key, Value)
+    {
         self.init(minimumCapacity: minimumCapacity)
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try keysAndValues.forEach { key, value in
+        while let (key, value) = try keysAndValues.next() {
             if updateValue(value, forKey: key) != nil {
                 fatalError("Duplicate values for key: '\(String(describing: key))'")
             }
@@ -170,12 +153,11 @@ extension Set {
     ///     let strings = try Set(cursor)
     ///
     /// - parameter cursor: A cursor of values to gather into a set.
-    public init(_ cursor: some Cursor<Element>) throws {
+    public init<C: Cursor>(_ cursor: C) throws where C.Element == Element {
         self.init()
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try cursor.forEach { insert($0) }
+        while let element = try cursor.next() {
+            insert(element)
+        }
     }
     
     /// Creates a set containing the elements of a cursor.
@@ -188,12 +170,11 @@ extension Set {
     /// - parameter minimumCapacity: The minimum number of elements that the
     ///   newly created set should be able to store without reallocating its
     ///   storage buffer.
-    public init(_ cursor: some Cursor<Element>, minimumCapacity: Int) throws {
+    public init<C: Cursor>(_ cursor: C, minimumCapacity: Int) throws where C.Element == Element {
         self.init(minimumCapacity: minimumCapacity)
-        // Prefer `forEach` over `next()` looping, as a slight performance
-        // improvement due to the single `sqlite3_stmt_busy` check for
-        // database cursors.
-        try cursor.forEach { insert($0) }
+        while let element = try cursor.next() {
+            insert(element)
+        }
     }
 }
 
@@ -214,13 +195,13 @@ extension Sequence {
 ///
 /// ## Overview
 ///
-/// To iterate over the elements of a cursor, use a `while` loop:
+/// The most common way to iterate over the elements of a cursor is to use a
+/// `while` loop:
 ///
-/// ```swift
-/// while let element = try cursor.next() {
-///     print(element)
-/// }
-/// ```
+///     let cursor = ...
+///     while let element = try cursor.next() {
+///         ...
+///     }
 ///
 /// ## Relationship with standard Sequence and IteratorProtocol
 ///
@@ -237,41 +218,20 @@ extension Sequence {
 /// `forEach`, `joined`, `joined(separator:)`, `max`, `max(by:)`, `min`,
 /// `min(by:)`, `map`, `prefix`, `prefix(while:)`, `reduce`, `reduce(into:)`,
 /// `suffix`.
-///
-/// ## Topics
-///
-/// ### Supporting Types
-///
-/// - ``AnyCursor``
-/// - ``DropFirstCursor``
-/// - ``DropWhileCursor``
-/// - ``EnumeratedCursor``
-/// - ``FilterCursor``
-/// - ``FlattenCursor``
-/// - ``MapCursor``
-/// - ``PrefixCursor``
-/// - ``PrefixWhileCursor``
-public protocol Cursor<Element>: AnyObject {
+public protocol Cursor: AnyObject {
     /// The type of element traversed by the cursor.
     associatedtype Element
     
     /// Advances to the next element and returns it, or nil if no next element
-    /// exists.
-    ///
-    /// Once nil has been returned, all subsequent calls return nil.
+    /// exists. Once nil has been returned, all subsequent calls return nil.
     func next() throws -> Element?
-    
-    /// Calls the given closure on each element in the cursor.
-    func forEach(_ body: (Element) throws -> Void) throws
 }
 
 extension Cursor {
-    /// Returns a Boolean value indicating whether the cursor does not contain
-    /// any element.
-    ///
-    /// - important: This property may consume elements.
-    public var isEmpty: Bool {
-        get throws { try next() == nil }
+    /// Returns a Boolean value indicating whether the cursor contains
+    /// an element.
+    public func isEmpty() throws -> Bool {
+        try next() == nil
     }
     
     /// Returns a Boolean value indicating whether the cursor contains an
@@ -332,7 +292,7 @@ extension Cursor {
     /// Returns a cursor that skips any initial elements that satisfy
     /// `predicate`.
     ///
-    /// - Parameter predicate: A closure that takes an element of the cursor as
+    /// - Parameter predicate: A closure that takes an element of the cursir as
     ///   its argument and returns `true` if the element should be skipped or
     ///   `false` otherwise. Once `predicate` returns `false` it will not be
     ///   called again.
@@ -688,54 +648,45 @@ extension Cursor where Element: StringProtocol {
 
 // MARK: Specialized Cursors
 
-/// A type-erased cursor.
+/// A type-erased cursor of Element.
 ///
-/// An instance of `AnyCursor` forwards its operations to an underlying base
-/// cursor having the same `Element` type, hiding the specifics of the
-/// underlying cursor.
+/// This cursor forwards its next() method to an arbitrary underlying cursor
+/// having the same Element type, hiding the specifics of the underlying
+/// cursor.
 public final class AnyCursor<Element>: Cursor {
-    private let _next: () throws -> Element?
-    private let _forEach: ((Element) throws -> Void) throws -> Void
+    private let element: () throws -> Element?
     
-    /// Creates a new cursor that wraps and forwards operations to `base`.
+    /// Creates a cursor that wraps a base cursor but whose type depends only on
+    /// the base cursor’s element type
     public init<C: Cursor>(_ base: C) where C.Element == Element {
-        _next = base.next
-        _forEach = base.forEach
+        element = base.next
     }
     
-    /// Creates a new cursor whose elements are elements of `iterator`.
-    public convenience init<I>(iterator: I)
-    where I: IteratorProtocol, I.Element == Element
-    {
+    /// Creates a cursor that wraps a base iterator but whose type depends only
+    /// on the base iterator’s element type
+    public convenience init<I: IteratorProtocol>(iterator: I) where I.Element == Element {
         var iterator = iterator
         self.init { iterator.next() }
     }
     
-    /// Creates a new cursor whose elements are elements of `sequence`.
-    public convenience init<S>(_ sequence: S)
-    where S: Sequence, S.Element == Element
-    {
-        self.init(iterator: sequence.makeIterator())
+    /// Creates a cursor that wraps a base sequence but whose type depends only
+    /// on the base sequence’s element type
+    public convenience init<S: Sequence>(_ s: S) where S.Element == Element {
+        self.init(iterator: s.makeIterator())
     }
     
-    /// Creates a cursor that wraps the given closure in its ``next()`` method.
-    public init(_ next: @escaping () throws -> Element?) {
-        _next = next
-        _forEach = {
-            while let element = try next() {
-                try $0(element)
-            }
-        }
+    /// Creates a cursor that wraps the given closure in its next() method
+    public init(_ body: @escaping () throws -> Element?) {
+        element = body
     }
     
     public func next() throws -> Element? {
-        try _next()
+        try element()
     }
 }
 
-/// A `Cursor` that consumes and drops n elements from an underlying `Base`
-/// cursor before possibly returning the first available element.
-public final class DropFirstCursor<Base: Cursor> {
+/// :nodoc:
+public final class DropFirstCursor<Base: Cursor>: Cursor {
     private let base: Base
     private let limit: Int
     private var dropped: Int = 0
@@ -745,9 +696,7 @@ public final class DropFirstCursor<Base: Cursor> {
         self.base = base
         self.limit = limit
     }
-}
-
-extension DropFirstCursor: Cursor {
+    
     public func next() throws -> Base.Element? {
         while dropped < limit {
             if try base.next() == nil {
@@ -760,9 +709,11 @@ extension DropFirstCursor: Cursor {
     }
 }
 
-/// A `Cursor` whose elements consist of the elements that follow the initial
-/// consecutive elements of some `Base` cursor that satisfy a given predicate.
-public final class DropWhileCursor<Base: Cursor> {
+/// A cursor whose elements consist of the elements that follow the initial
+/// consecutive elements of some base cursor that satisfy a given predicate.
+///
+/// :nodoc:
+public final class DropWhileCursor<Base: Cursor>: Cursor {
     private let base: Base
     private let predicate: (Base.Element) throws -> Bool
     private var predicateHasFailed = false
@@ -771,9 +722,7 @@ public final class DropWhileCursor<Base: Cursor> {
         self.base = base
         self.predicate = predicate
     }
-}
-
-extension DropWhileCursor: Cursor {
+    
     public func next() throws -> Base.Element? {
         if predicateHasFailed {
             return try base.next()
@@ -791,24 +740,19 @@ extension DropWhileCursor: Cursor {
 
 /// An enumeration of the elements of a cursor.
 ///
-/// `EnumeratedCursor` is a cursor of pairs _(n, x)_, where _ns_ are consecutive
-/// `Int` values starting at zero, and _xs_ are the elements of a `Base` cursor.
+/// To create an instance of `EnumeratedCursor`, call the `enumerated()` method
+/// on a cursor:
 ///
-/// To create an instance of `EnumeratedCursor`, call `enumerated()` on a
-/// cursor. For example:
+///     let cursor = try String.fetchCursor(db, sql: "SELECT 'foo' UNION ALL SELECT 'bar'")
+///     let c = cursor.enumerated()
+///     while let (n, x) = c.next() {
+///         print("\(n): \(x)")
+///     }
+///     // Prints: "0: foo"
+///     // Prints: "1: bar"
 ///
-/// ```swift
-/// let base = try String.fetchCursor(db, sql: """
-///     SELECT 'foo' UNION ALL SELECT 'bar'
-///     """)
-/// let cursor = base.enumerated()
-/// while let (n, x) = cursor.next() {
-///     print("\(n): \(x)")
-/// }
-/// // Prints: "0: foo"
-/// // Prints: "1: bar"
-/// ```
-public final class EnumeratedCursor<Base: Cursor> {
+/// :nodoc:
+public final class EnumeratedCursor<Base: Cursor>: Cursor {
     private let base: Base
     private var index: Int
     
@@ -816,26 +760,19 @@ public final class EnumeratedCursor<Base: Cursor> {
         self.base = base
         self.index = 0
     }
-}
-
-extension EnumeratedCursor: Cursor {
+    
     public func next() throws -> (Int, Base.Element)? {
         guard let element = try base.next() else { return nil }
         defer { index += 1 }
         return (index, element)
     }
-    
-    public func forEach(_ body: ((Int, Base.Element)) throws -> Void) throws {
-        try base.forEach { element in
-            defer { index += 1 }
-            try body((index, element))
-        }
-    }
 }
 
-/// A `Cursor` whose elements consist of the elements of some `Base` cursor that
+/// A cursor whose elements consist of the elements of some base cursor that
 /// also satisfy a given predicate.
-public final class FilterCursor<Base: Cursor> {
+///
+/// :nodoc:
+public final class FilterCursor<Base: Cursor>: Cursor {
     private let base: Base
     private let isIncluded: (Base.Element) throws -> Bool
     
@@ -843,9 +780,7 @@ public final class FilterCursor<Base: Cursor> {
         self.base = base
         self.isIncluded = isIncluded
     }
-}
-
-extension FilterCursor: Cursor {
+    
     public func next() throws -> Base.Element? {
         while let element = try base.next() {
             if try isIncluded(element) {
@@ -854,28 +789,22 @@ extension FilterCursor: Cursor {
         }
         return nil
     }
-    
-    public func forEach(_ body: (Base.Element) throws -> Void) throws {
-        try base.forEach { element in
-            if try isIncluded(element) {
-                try body(element)
-            }
-        }
-    }
 }
 
-/// A `Cursor` consisting of all the elements contained in each segment
-/// contained in some `Base` cursor.
-public final class FlattenCursor<Base: Cursor> where Base.Element: Cursor {
+/// A cursor consisting of all the elements contained in each segment contained
+/// in some Base cursor.
+///
+/// See Cursor.joined(), Cursor.flatMap(_:), Sequence.flatMap(_:)
+///
+/// :nodoc:
+public final class FlattenCursor<Base: Cursor>: Cursor where Base.Element: Cursor {
     private let base: Base
     private var inner: Base.Element?
     
     init(_ base: Base) {
         self.base = base
     }
-}
-
-extension FlattenCursor: Cursor {
+    
     public func next() throws -> Base.Element.Element? {
         while true {
             if let element = try inner?.next() {
@@ -889,9 +818,13 @@ extension FlattenCursor: Cursor {
     }
 }
 
-/// A `Cursor` whose elements consist of those in a `Base` cursor passed through
-/// a transform function returning Element.
-public final class MapCursor<Base: Cursor, Element> {
+/// A Cursor whose elements consist of those in a Base Cursor passed through a
+/// transform function returning Element.
+///
+/// See Cursor.map(_:)
+///
+/// :nodoc:
+public final class MapCursor<Base: Cursor, Element>: Cursor {
     private let base: Base
     private let transform: (Base.Element) throws -> Element
     
@@ -899,24 +832,18 @@ public final class MapCursor<Base: Cursor, Element> {
         self.base = base
         self.transform = transform
     }
-}
-
-extension MapCursor: Cursor {
+    
     public func next() throws -> Element? {
         guard let element = try base.next() else { return nil }
         return try transform(element)
     }
-    
-    public func forEach(_ body: (Element) throws -> Void) throws {
-        try base.forEach { element in
-            try body(transform(element))
-        }
-    }
 }
 
-/// A `Cursor` that only consumes up to `n` elements from an underlying
+/// A cursor that only consumes up to `n` elements from an underlying
 /// `Base` cursor.
-public final class PrefixCursor<Base: Cursor> {
+///
+/// :nodoc:
+public final class PrefixCursor<Base: Cursor>: Cursor {
     private let base: Base
     private let maxLength: Int
     private var taken = 0
@@ -925,9 +852,7 @@ public final class PrefixCursor<Base: Cursor> {
         self.base = base
         self.maxLength = maxLength
     }
-}
-
-extension PrefixCursor: Cursor {
+    
     public func next() throws -> Base.Element? {
         if taken >= maxLength { return nil }
         taken += 1
@@ -941,9 +866,11 @@ extension PrefixCursor: Cursor {
     }
 }
 
-/// A `Cursor` whose elements consist of the initial consecutive elements of
-/// some `Base` cursor that satisfy a given predicate.
-public final class PrefixWhileCursor<Base: Cursor> {
+/// A cursor whose elements consist of the initial consecutive elements of
+/// some base cursor that satisfy a given predicate.
+///
+/// :nodoc:
+public final class PrefixWhileCursor<Base: Cursor>: Cursor {
     private let base: Base
     private let predicate: (Base.Element) throws -> Bool
     private var predicateHasFailed = false
@@ -952,9 +879,7 @@ public final class PrefixWhileCursor<Base: Cursor> {
         self.base = base
         self.predicate = predicate
     }
-}
-
-extension PrefixWhileCursor: Cursor {
+    
     public func next() throws -> Base.Element? {
         if !predicateHasFailed, let nextElement = try base.next() {
             if try predicate(nextElement) {

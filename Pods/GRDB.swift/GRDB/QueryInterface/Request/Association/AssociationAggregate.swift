@@ -7,128 +7,65 @@ extension AssociationToMany {
     
     /// The number of associated records.
     ///
+    /// It has a default name, which is "[key]Count", where key is the key of
+    /// the association. For example:
+    ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var playerCount: Int
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.count())
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams with at least ten players:
-    ///     let teams: [Team] = try Team
-    ///         .having(Team.players.count >= 10)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    ///
-    /// The returned association aggregate is named `"[key]Count"`, where `key`
-    /// is the association key. For example:
-    ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var playerCount: Int
-    /// }
-    ///
-    /// try dbQueue.read { db in
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: Team.players.count)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let teams: [Team] = try Team.having(Team.players.count() > 10).fetchAll(db)
     public var count: AssociationAggregate<OriginRowDecoder> {
         makeAggregate(.countDistinct(.fastPrimaryKey))
             .forKey("\(key.singularizedName)Count")
     }
     
-    /// Returns a boolean aggregate that is true if no associated
-    /// records exist.
+    /// Creates an aggregate that is true if there exists no associated records.
     ///
-    /// For example:
+    /// It has a default name, which is "hasNo[Key]", where key is the key of
+    /// the association. For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var hasNoPlayer: Bool
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.isEmpty())
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams without any player
-    ///     let teams: [Team] = try Team
-    ///         .having(Team.players.isEmpty)
-    ///         .fetchAll(db)
-    ///
-    ///     // Fetch all teams without some player
-    ///     let teams: [Team] = try Team
-    ///         .having(Team.players.isEmpty == false)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    ///
-    /// The returned association aggregate is named `"hasNo[key]"`, where `key`
-    /// is the association key. For example:
-    ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var hasNoPlayer: Int
-    /// }
-    ///
-    /// try dbQueue.read { db in
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: Team.players.isEmpty)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let teams: [Team] = try Team.having(Team.players.isEmpty()).fetchAll(db)
+    ///     let teams: [Team] = try Team.having(!Team.players.isEmpty())
+    ///     let teams: [Team] = try Team.having(Team.players.isEmpty() == false)
     public var isEmpty: AssociationAggregate<OriginRowDecoder> {
         makeAggregate(.isEmpty(.countDistinct(.fastPrimaryKey)))
             .forKey("hasNo\(key.singularizedName.uppercasingFirstCharacter)")
     }
     
-    /// Returns the average of the given expression in associated records.
+    /// Creates an aggregate which evaluate to the average value of the given
+    /// expression in associated records.
+    ///
+    /// When the averaged expression is a column, the aggregate has a default
+    /// name which is "average[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var averagePlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.average(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams whose average player score is greater than 1000
-    ///     let averageScore = Team.players.average(Column("score"))
-    ///     let teams: [Team] = try Team
-    ///         .having(averageScore >= 1000)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    ///
-    /// When the input expression is a ``ColumnExpression``, the returned
-    /// association aggregate is named `"average[Key][Column]"`, where `key` is
-    /// the association key. For example:
-    ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var averagePlayerScore: Double
-    /// }
-    ///
-    /// try dbQueue.read { db in
-    ///     let averageScore = Team.players.average(Column("score"))
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: averageScore)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    public func average(_ expression: some SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
-        let aggregate = makeAggregate(.function("AVG", [expression.sqlExpression]))
-        if let column = expression as? any ColumnExpression {
+    ///     let teams: [Team] = try Team.having(Team.players.average(Column("score")) > 100).fetchAll(db)
+    @available(*, deprecated, message: "Did you mean average(Column(...))? If not, prefer average(value.databaseValue) instead.") // swiftlint:disable:this line_length
+    public func average(_ expression: SQLExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("AVG", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
             let name = key.singularizedName
             return aggregate.forKey("average\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
         } else {
@@ -136,46 +73,54 @@ extension AssociationToMany {
         }
     }
     
-    /// Returns the maximum value of the given expression in associated records.
+    /// Creates an aggregate which evaluate to the average value of the given
+    /// expression in associated records.
+    ///
+    /// When the averaged expression is a column, the aggregate has a default
+    /// name which is "average[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var averagePlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.average(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams whose maximum player score is greater than 1000
-    ///     let maxScore = Team.players.max(Column("score"))
-    ///     let teams: [Team] = try Team
-    ///         .having(maxScore >= 1000)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let teams: [Team] = try Team.having(Team.players.average(Column("score")) > 100).fetchAll(db)
+    public func average(_ expression: SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("AVG", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
+            let name = key.singularizedName
+            return aggregate.forKey("average\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
+        } else {
+            return aggregate
+        }
+    }
+    
+    /// Creates an aggregate which evaluate to the maximum value of the given
+    /// expression in associated records.
     ///
-    /// When the input expression is a ``ColumnExpression``, the returned
-    /// association aggregate is named `"maximum[Key][Column]"`, where `key` is
-    /// the association key. For example:
+    /// When the maximized expression is a column, the aggregate has a default
+    /// name which is "maximum[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var maximumPlayerScore: Double
-    /// }
+    /// For example:
     ///
-    /// try dbQueue.read { db in
-    ///     let maxScore = Team.players.max(Column("score"))
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: maxScore)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    public func max(_ expression: some SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
-        let aggregate = makeAggregate(.function("MAX", [expression.sqlExpression]))
-        if let column = expression as? any ColumnExpression {
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var maxPlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.max(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
+    ///
+    ///     let teams: [Team] = try Team.having(Team.players.max(Column("score")) < 100).fetchAll(db)
+    @available(*, deprecated, message: "Did you mean max(Column(...))? If not, prefer max(value.databaseValue) instead.") // swiftlint:disable:this line_length
+    public func max(_ expression: SQLExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("MAX", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
             let name = key.singularizedName
             return aggregate.forKey("max\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
         } else {
@@ -183,46 +128,54 @@ extension AssociationToMany {
         }
     }
     
-    /// Returns the minimum value of the given expression in associated records.
+    /// Creates an aggregate which evaluate to the maximum value of the given
+    /// expression in associated records.
+    ///
+    /// When the maximized expression is a column, the aggregate has a default
+    /// name which is "maximum[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var maxPlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.max(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams whose minimum player score is less than 1000
-    ///     let minScore = Team.players.min(Column("score"))
-    ///     let teams: [Team] = try Team
-    ///         .having(minScore < 1000)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let teams: [Team] = try Team.having(Team.players.max(Column("score")) < 100).fetchAll(db)
+    public func max(_ expression: SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("MAX", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
+            let name = key.singularizedName
+            return aggregate.forKey("max\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
+        } else {
+            return aggregate
+        }
+    }
+    
+    /// Creates an aggregate which evaluate to the minimum value of the given
+    /// expression in associated records.
     ///
-    /// When the input expression is a ``ColumnExpression``, the returned
-    /// association aggregate is named `"minimum[Key][Column]"`, where `key` is
-    /// the association key. For example:
+    /// When the minimized expression is a column, the aggregate has a default
+    /// name which is "minimum[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var minimumPlayerScore: Double
-    /// }
+    /// For example:
     ///
-    /// try dbQueue.read { db in
-    ///     let minScore = Team.players.min(Column("score"))
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: minScore)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    public func min(_ expression: some SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
-        let aggregate = makeAggregate(.function("MIN", [expression.sqlExpression]))
-        if let column = expression as? any ColumnExpression {
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var minPlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.min(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
+    ///
+    ///     let teams: [Team] = try Team.having(Team.players.min(Column("score")) > 100).fetchAll(db)
+    @available(*, deprecated, message: "Did you mean min(Column(...))? If not, prefer min(value.databaseValue) instead.") // swiftlint:disable:this line_length
+    public func min(_ expression: SQLExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("MIN", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
             let name = key.singularizedName
             return aggregate.forKey("min\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
         } else {
@@ -230,49 +183,54 @@ extension AssociationToMany {
         }
     }
     
-    /// Returns the sum of the given expression in associated records.
+    /// Creates an aggregate which evaluate to the minimum value of the given
+    /// expression in associated records.
     ///
-    /// This aggregate invokes the `SUM` SQL function. See also ``total(_:)``
-    /// and <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
+    /// When the minimized expression is a column, the aggregate has a default
+    /// name which is "minimum[Key][Column]", where key is the key of the
+    /// association. For example:
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var minPlayerScore: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.min(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams whose sum of player scores is greater than 1000
-    ///     let scoreSum = Team.players.sum(Column("score"))
-    ///     let teams: [Team] = try Team
-    ///         .having(scoreSum >= 1000)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let teams: [Team] = try Team.having(Team.players.min(Column("score")) > 100).fetchAll(db)
+    public func min(_ expression: SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("MIN", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
+            let name = key.singularizedName
+            return aggregate.forKey("min\(name.uppercasingFirstCharacter)\(column.name.uppercasingFirstCharacter)")
+        } else {
+            return aggregate
+        }
+    }
+    
+    /// Creates an aggregate which evaluate to the sum of the given expression
+    /// in associated records.
     ///
-    /// When the input expression is a ``ColumnExpression``, the returned
-    /// association aggregate is named `"[key][Column]Sum"`, where `key` is the
-    /// association key. For example:
+    /// When the summed expression is a column, the aggregate has a default
+    /// name which is "[key][Column]Sum", where key is the key of the
+    /// association. For example:
     ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var playerScoreSum: Double
-    /// }
+    /// For example:
     ///
-    /// try dbQueue.read { db in
-    ///     let scoreSum = Team.players.sum(Column("score"))
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: scoreSum)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    public func sum(_ expression: some SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
-        let aggregate = makeAggregate(.function("SUM", [expression.sqlExpression]))
-        if let column = expression as? any ColumnExpression {
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var playerScoreSum: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.sum(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
+    ///
+    ///     let teams: [Team] = try Team.having(Team.players.sum(Column("score")) > 100).fetchAll(db)
+    @available(*, deprecated, message: "Did you mean sum(Column(...))? If not, prefer sum(value.databaseValue) instead.") // swiftlint:disable:this line_length
+    public func sum(_ expression: SQLExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("SUM", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
             let name = key.singularizedName
             return aggregate.forKey("\(name)\(column.name.uppercasingFirstCharacter)Sum")
         } else {
@@ -280,52 +238,27 @@ extension AssociationToMany {
         }
     }
     
-    /// Returns the sum of the given expression in associated records.
+    /// Creates an aggregate which evaluate to the sum of the given expression
+    /// in associated records.
     ///
-    /// This aggregate invokes the `TOTAL` SQL function. See also ``sum(_:)``
-    /// and <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
+    /// When the summed expression is a column, the aggregate has a default
+    /// name which is "[key][Column]Sum", where key is the key of the
+    /// association. For example:
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
+    ///     struct TeamInfo: FetchableRecord, Decodable {
+    ///         var team: Team
+    ///         var playerScoreSum: Double
+    ///     }
+    ///     let request = Team.annotated(with: Team.players.sum(Column("score")))
+    ///     let infos: [TeamInfo] = try TeamInfo.fetchAll(db, request)
     ///
-    /// try dbQueue.read { db in
-    ///     // Fetch all teams whose sum of player scores is greater than 1000
-    ///     let totalScore = Team.players.total(Column("score"))
-    ///     let teams: [Team] = try Team
-    ///         .having(totalScore >= 1000)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    ///
-    /// When the input expression is a ``ColumnExpression``, the returned
-    /// association aggregate is named `"[key][Column]Sum"`, where `key` is the
-    /// association key. For example:
-    ///
-    /// ```swift
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var playerScoreSum: Double
-    /// }
-    ///
-    /// try dbQueue.read { db in
-    ///     let totalScore = Team.players.total(Column("score"))
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: totalScore)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
-    public func total(_ expression: some SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
-        let aggregate = makeAggregate(.function("TOTAL", [expression.sqlExpression]))
-        if let column = expression as? any ColumnExpression {
+    ///     let teams: [Team] = try Team.having(Team.players.sum(Column("score")) > 100).fetchAll(db)
+    public func sum(_ expression: SQLSpecificExpressible) -> AssociationAggregate<OriginRowDecoder> {
+        let aggregate = makeAggregate(.aggregate("SUM", [expression.sqlExpression]))
+        if let column = expression as? ColumnExpression {
             let name = key.singularizedName
-            // Yes we use the `Sum` suffix instead of `Total`. Both `total(_:)`
-            // and `sum(_:)` compute sums.
             return aggregate.forKey("\(name)\(column.name.uppercasingFirstCharacter)Sum")
         } else {
             return aggregate
@@ -333,40 +266,28 @@ extension AssociationToMany {
     }
 }
 
-/// A value aggregated from a population of associated records.
-///
-/// You build an `AssociationAggregate` from an ``AssociationToMany``.
+/// An AssociationAggregate is able to compute aggregated values from a
+/// population of associated records.
 ///
 /// For example:
 ///
-/// ```swift
-/// struct Player: TableRecord { }
-/// struct Team: FetchableRecord, TableRecord {
-///     static let players = Team.hasMany(Player.self)
-/// }
+///     struct Author: TableRecord {
+///         static let books = hasMany(Book.self)
+///     }
 ///
-/// try dbQueue.read { db in
-///     // An association aggregate
-///     let playerCount = Team.players.count
+///     let bookCount = Author.books.count // AssociationAggregate<Author>
 ///
-///     // Fetch all teams with at least ten players:
-///     let teams: [Team] = try Team
-///         .having(playerCount >= 10)
-///         .fetchAll(db)
-/// }
-/// ```
+/// Association aggregates can be used in the `annotated(with:)` and
+/// `having(_:)` request methods:
 ///
-/// ## Topics
+///     let request = Author.annotated(with: bookCount)
+///     let request = Author.having(bookCount >= 10)
 ///
-/// ### Instance Methods
+/// The RowDecoder generic type helps the compiler prevent incorrect use
+/// of aggregates:
 ///
-/// - ``forKey(_:)-1rvux``
-/// - ``forKey(_:)-1ua4j``
-///
-/// ### Top-Level Functions
-///
-/// - ``abs(_:)-43n8v``
-/// - ``length(_:)-9dr2v``
+///     // Won't compile because Fruit is not Author.
+///     let request = Fruit.annotated(with: bookCount)
 public struct AssociationAggregate<RowDecoder> {
     fileprivate let preparation: AssociationAggregatePreparation<RowDecoder>
     
@@ -405,7 +326,9 @@ public struct AssociationAggregate<RowDecoder> {
     /// - We don't know yet if the aggregated expression will be used in the
     ///   SQL selection, or in the HAVING clause.
     /// - It helps implementing aggregate operators such as `&&`, `+`, etc.
-    func prepare(_ request: inout some DerivableRequest<RowDecoder>) -> SQLExpression {
+    func prepare<Request>(_ request: inout Request) -> SQLExpression
+    where Request: DerivableRequest, Request.RowDecoder == RowDecoder
+    {
         preparation.prepare(&request)
     }
 }
@@ -415,26 +338,11 @@ extension AssociationAggregate: Refinable {
     ///
     /// For example:
     ///
-    /// ```swift
-    /// struct Player: TableRecord { }
-    /// struct Team: FetchableRecord, TableRecord {
-    ///     static let players = Team.hasMany(Player.self)
-    /// }
-    ///
-    /// struct TeamInfo: FetchableRecord, Decodable {
-    ///     var team: Team
-    ///     var numberOfBooks: Int
-    /// }
-    ///
-    /// try dbQueue.read { db in
-    ///     let playerCount = Team.players.count.forKey("numberOfBooks")
-    ///
-    ///     let infos: [TeamInfo] = try Team
-    ///         .annotated(with: playerCount)
-    ///         .asRequest(of: TeamInfo.self)
-    ///         .fetchAll(db)
-    /// }
-    /// ```
+    ///     let aggregate = Author.books.count.forKey("numberOfBooks")
+    ///     let request = Author.annotated(with: aggregate)
+    ///     if let row = try Row.fetchOne(db, request) {
+    ///         let numberOfBooks: Int = row["numberOfBooks"]
+    ///     }
     public func forKey(_ key: String) -> Self {
         with {
             $0.key = key
@@ -444,8 +352,19 @@ extension AssociationAggregate: Refinable {
     /// Returns an aggregate that is selected in a column named like the given
     /// coding key.
     ///
-    /// See ``forKey(_:)-1rvux``.
-    public func forKey(_ key: some CodingKey) -> Self {
+    /// For example:
+    ///
+    ///     struct AuthorInfo: Decodable, FetchableRecord {
+    ///         var author: Author
+    ///         var numberOfBooks: Int
+    ///
+    ///         static func fetchAll(_ db: Database) throws -> [AuthorInfo] {
+    ///             let aggregate = Author.books.count.forKey(CodingKeys.numberOfBooks)
+    ///             let request = Author.annotated(with: aggregate)
+    ///             return try AuthorInfo.fetchAll(db, request)
+    ///         }
+    ///     }
+    public func forKey(_ key: CodingKey) -> Self {
         forKey(key.stringValue)
     }
 }
@@ -463,14 +382,16 @@ extension AssociationAggregate: Refinable {
 /// We could have used a generic closure instead of this class... if only Swift
 /// would support generic closures.
 private class AssociationAggregatePreparation<RowDecoder> {
-    func prepare(_ request: inout some DerivableRequest<RowDecoder>) -> SQLExpression {
+    func prepare<Request>(_ request: inout Request) -> SQLExpression
+    where Request: DerivableRequest, Request.RowDecoder == RowDecoder
+    {
         fatalError("subclass must override")
     }
 }
 
 /// Prepares a request so that it can use association aggregates.
 private class BasePreparation<Association: AssociationToMany>:
-    AssociationAggregatePreparation<Association.OriginRowDecoder>
+    AssociationAggregatePreparation<Association.OriginRowDecoder>  // swiftlint:disable:previous colon
 {
     private let association: Association
     private let expression: SQLExpression
@@ -480,7 +401,9 @@ private class BasePreparation<Association: AssociationToMany>:
         self.expression = expression
     }
     
-    override func prepare(_ request: inout some DerivableRequest<Association.OriginRowDecoder>) -> SQLExpression {
+    override func prepare<Request>(_ request: inout Request) -> SQLExpression
+    where Request: DerivableRequest, Request.RowDecoder == Association.OriginRowDecoder
+    {
         // The fundamental request that supports association aggregate:
         //
         //     SELECT parent.*
@@ -511,7 +434,9 @@ private class MapPreparation<RowDecoder>: AssociationAggregatePreparation<RowDec
         self.transform = transform
     }
     
-    override func prepare(_ request: inout some DerivableRequest<RowDecoder>) -> SQLExpression {
+    override func prepare<Request>(_ request: inout Request) -> SQLExpression
+    where Request: DerivableRequest, Request.RowDecoder == RowDecoder
+    {
         transform(base.prepare(&request))
     }
 }
@@ -539,7 +464,9 @@ private class CombinePreparation<RowDecoder>: AssociationAggregatePreparation<Ro
         self.combine = combine
     }
     
-    override func prepare(_ request: inout some DerivableRequest<RowDecoder>) -> SQLExpression {
+    override func prepare<Request>(_ request: inout Request) -> SQLExpression
+    where Request: DerivableRequest, Request.RowDecoder == RowDecoder
+    {
         let lhsExpression = lhs.prepare(&request)
         let rhsExpression = rhs.prepare(&request)
         return combine(lhsExpression, rhsExpression)
@@ -558,316 +485,615 @@ private func combine<RowDecoder>(
 
 // MARK: - Logical Operators (AND, OR, NOT)
 
-extension AssociationAggregate {
-    /// A negated logical aggregate.
-    ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Author.having(!Author.books.isEmpty)
-    /// ```
-    public static prefix func ! (aggregate: Self) -> Self {
-        aggregate.map { !$0 }
-    }
-    
-    /// The `AND` SQL operator.
-    public static func && (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: &&)
-    }
-    
-    // TODO: test
-    /// The `AND` SQL operator.
-    public static func && (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 && rhs }
-    }
-    
-    // TODO: test
-    /// The `AND` SQL operator.
-    public static func && (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs && $0 }
-    }
-    
-    
-    /// The `OR` SQL operator.
-    public static func || (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: ||)
-    }
-    
-    // TODO: test
-    /// The `OR` SQL operator.
-    public static func || (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 || rhs }
-    }
-    
-    // TODO: test
-    /// The `OR` SQL operator.
-    public static func || (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs || $0 }
-    }
+/// Returns a logically negated aggregate.
+///
+/// For example:
+///
+///     Author.having(!Author.books.isEmpty)
+public prefix func ! <RowDecoder>(aggregate: AssociationAggregate<RowDecoder>) -> AssociationAggregate<RowDecoder> {
+    aggregate.map { !$0 }
+}
+
+/// Groups two aggregates with the `AND` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.isEmpty && Author.paintings.isEmpty)
+public func && <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: &&)
+}
+
+// TODO: test
+/// :nodoc:
+public func && <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 && rhs }
+}
+
+// TODO: test
+/// :nodoc:
+public func && <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs && $0 }
+}
+
+
+/// Groups two aggregates with the `OR` SQL operator.
+///
+/// For example:
+///
+///     Author.having(!Author.books.isEmpty || !Author.paintings.isEmpty)
+public func || <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: ||)
+}
+
+// TODO: test
+/// :nodoc:
+public func || <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 || rhs }
+}
+
+// TODO: test
+/// :nodoc:
+public func || <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs || $0 }
 }
 
 // MARK: - Egality and Identity Operators (=, <>, IS, IS NOT)
 
-extension AssociationAggregate {
-    /// The `=` SQL operator.
-    public static func == (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: ==)
-    }
-    
-    /// The `=` SQL operator.
-    ///
-    /// When the right operand is nil, `IS NULL` is used instead of the
-    /// `=` operator.
-    public static func == (lhs: Self, rhs: (any SQLExpressible)?) -> Self {
-        lhs.map { $0 == rhs }
-    }
-    
-    /// The `=` SQL operator.
-    ///
-    /// When the left operand is nil, `IS NULL` is used instead of the
-    /// `=` operator.
-    public static func == (lhs: (any SQLExpressible)?, rhs: Self) -> Self {
-        rhs.map { lhs == $0 }
-    }
-    
-    /// The `=` SQL operator.
-    public static func == (lhs: Self, rhs: Bool) -> Self {
-        lhs.map { $0 == rhs }
-    }
-    
-    /// The `=` SQL operator.
-    public static func == (lhs: Bool, rhs: Self) -> Self {
-        rhs.map { lhs == $0 }
-    }
-    
-    /// The `<>` SQL operator.
-    public static func != (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: !=)
-    }
-    
-    /// The `<>` SQL operator.
-    ///
-    /// When the right operand is nil, `IS NOT NULL` is used instead of the
-    /// `<>` operator.
-    public static func != (lhs: Self, rhs: (any SQLExpressible)?) -> Self {
-        lhs.map { $0 != rhs }
-    }
-    
-    /// The `<>` SQL operator.
-    ///
-    /// When the left operand is nil, `IS NOT NULL` is used instead of the
-    /// `<>` operator.
-    public static func != (lhs: (any SQLExpressible)?, rhs: Self) -> Self {
-        rhs.map { lhs != $0 }
-    }
-    
-    /// The `<>` SQL operator.
-    public static func != (lhs: Self, rhs: Bool) -> Self {
-        lhs.map { $0 != rhs }
-    }
-    
-    /// The `<>` SQL operator.
-    public static func != (lhs: Bool, rhs: Self) -> Self {
-        rhs.map { lhs != $0 }
-    }
-    
-    /// The `IS` SQL operator.
-    public static func === (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: ===)
-    }
-    
-    /// The `IS` SQL operator.
-    public static func === (lhs: Self, rhs: (any SQLExpressible)?) -> Self {
-        lhs.map { $0 === rhs }
-    }
-    
-    /// The `IS` SQL operator.
-    public static func === (lhs: (any SQLExpressible)?, rhs: Self) -> Self {
-        rhs.map { lhs === $0 }
-    }
-    
-    /// The `IS NOT` SQL operator.
-    public static func !== (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: !==)
-    }
-    
-    /// The `IS NOT` SQL operator.
-    public static func !== (lhs: Self, rhs: (any SQLExpressible)?) -> Self {
-        lhs.map { $0 !== rhs }
-    }
-    
-    /// The `IS NOT` SQL operator.
-    public static func !== (lhs: (any SQLExpressible)?, rhs: Self) -> Self {
-        rhs.map { lhs !== $0 }
-    }
+/// Returns an aggregate that compares two aggregates with the `=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count == Author.paintings.count)
+public func == <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: ==)
+}
+
+/// Returns an aggregate that compares an aggregate with the `=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count == 3)
+public func == <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 == rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `=` SQL operator.
+///
+/// For example:
+///
+///    Author.having(3 == Author.books.count)
+public func == <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs == $0 }
+}
+
+/// Returns an aggregate that checks the boolean value of an aggregate.
+///
+/// For example:
+///
+///     Author.having(Author.books.isEmpty == false)
+public func == <RowDecoder>(lhs: AssociationAggregate<RowDecoder>, rhs: Bool) -> AssociationAggregate<RowDecoder> {
+    lhs.map { $0 == rhs }
+}
+
+/// Returns an aggregate that checks the boolean value of an aggregate.
+///
+/// For example:
+///
+///     Author.having(false == Author.books.isEmpty)
+public func == <RowDecoder>(lhs: Bool, rhs: AssociationAggregate<RowDecoder>) -> AssociationAggregate<RowDecoder> {
+    rhs.map { lhs == $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `<>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count != Author.paintings.count)
+public func != <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: !=)
+}
+
+/// Returns an aggregate that compares an aggregate with the `<>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count != 3)
+public func != <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 != rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `<>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 != Author.books.count)
+public func != <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs != $0 }
+}
+
+/// Returns an aggregate that checks the boolean value of an aggregate.
+///
+/// For example:
+///
+///     Author.having(Author.books.isEmpty != true)
+public func != <RowDecoder>(lhs: AssociationAggregate<RowDecoder>, rhs: Bool) -> AssociationAggregate<RowDecoder> {
+    lhs.map { $0 != rhs }
+}
+
+/// Returns an aggregate that checks the boolean value of an aggregate.
+///
+/// For example:
+///
+///     Author.having(true != Author.books.isEmpty)
+public func != <RowDecoder>(lhs: Bool, rhs: AssociationAggregate<RowDecoder>) -> AssociationAggregate<RowDecoder> {
+    rhs.map { lhs != $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `IS` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count === Author.paintings.count)
+public func === <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: ===)
+}
+
+/// Returns an aggregate that compares an aggregate with the `IS` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count === 3)
+public func === <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 === rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `IS` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 === Author.books.count)
+public func === <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs === $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `IS NOT` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count !== Author.paintings.count)
+public func !== <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: !==)
+}
+
+/// Returns an aggregate that compares an aggregate with the `IS NOT` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count !== 3)
+public func !== <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 !== rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `IS NOT` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 !== Author.books.count)
+public func !== <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs !== $0 }
 }
 
 // MARK: - Comparison Operators (<, >, <=, >=)
 
-extension AssociationAggregate {
-    /// The `<=` SQL operator.
-    public static func <= (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: <=)
-    }
-    
-    /// The `<=` SQL operator.
-    public static func <= (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 <= rhs }
-    }
-    
-    /// The `<=` SQL operator.
-    public static func <= (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs <= $0 }
-    }
-    
-    /// The `<` SQL operator.
-    public static func < (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: <)
-    }
-    
-    /// The `<` SQL operator.
-    public static func < (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 < rhs }
-    }
-    
-    /// The `<` SQL operator.
-    public static func < (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs < $0 }
-    }
-    
-    /// The `>` SQL operator.
-    public static func > (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: >)
-    }
-    
-    /// The `>` SQL operator.
-    public static func > (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 > rhs }
-    }
-    
-    /// The `>` SQL operator.
-    public static func > (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs > $0 }
-    }
-    
-    /// The `>=` SQL operator.
-    public static func >= (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: >=)
-    }
-    
-    /// The `>=` SQL operator.
-    public static func >= (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 >= rhs }
-    }
-    
-    /// The `>=` SQL operator.
-    public static func >= (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs >= $0 }
-    }
+/// Returns an aggregate that compares two aggregates with the `<=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count <= Author.paintings.count)
+public func <= <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: <=)
+}
+
+/// Returns an aggregate that compares an aggregate with the `<=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count <= 3)
+public func <= <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 <= rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `<=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 <= Author.books.count)
+public func <= <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs <= $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `<` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count < Author.paintings.count)
+public func < <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: <)
+}
+
+/// Returns an aggregate that compares an aggregate with the `<` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count < 3)
+public func < <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 < rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `<` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 < Author.books.count)
+public func < <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs < $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count > Author.paintings.count)
+public func > <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: >)
+}
+
+/// Returns an aggregate that compares an aggregate with the `>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count > 3)
+public func > <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 > rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `>` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 > Author.books.count)
+public func > <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs > $0 }
+}
+
+/// Returns an aggregate that compares two aggregates with the `>=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count >= Author.paintings.count)
+public func >= <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: >=)
+}
+
+/// Returns an aggregate that compares an aggregate with the `>=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(Author.books.count >= 3)
+public func >= <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 >= rhs }
+}
+
+/// Returns an aggregate that compares an aggregate with the `>=` SQL operator.
+///
+/// For example:
+///
+///     Author.having(3 >= Author.books.count)
+public func >= <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs >= $0 }
 }
 
 // MARK: - Arithmetic Operators (+, -, *, /)
 
-extension AssociationAggregate {
-    /// The `-` SQL operator.
-    public static prefix func - (aggregate: Self) -> Self {
-        aggregate.map { -$0 }
-    }
-    
-    /// The `+` SQL operator.
-    public static func + (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: +)
-    }
-    
-    /// The `+` SQL operator.
-    public static func + (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 + rhs }
-    }
-    
-    /// The `+` SQL operator.
-    public static func + (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs + $0 }
-    }
-    
-    /// The `-` SQL operator.
-    public static func - (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: -)
-    }
-    
-    /// The `-` SQL operator.
-    public static func - (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 - rhs }
-    }
-    
-    /// The `-` SQL operator.
-    public static func - (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs - $0 }
-    }
-    
-    /// The `*` SQL operator.
-    public static func * (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: *)
-    }
-    
-    /// The `*` SQL operator.
-    public static func * (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 * rhs }
-    }
-    
-    /// The `*` SQL operator.
-    public static func * (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs * $0 }
-    }
-    
-    /// The `/` SQL operator.
-    public static func / (lhs: Self, rhs: Self) -> Self {
-        combine(lhs, rhs, with: /)
-    }
-    
-    /// The `/` SQL operator.
-    public static func / (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs.map { $0 / rhs }
-    }
-    
-    /// The `/` SQL operator.
-    public static func / (lhs: some SQLExpressible, rhs: Self) -> Self {
-        rhs.map { lhs / $0 }
-    }
+/// Returns an arithmetically negated aggregate.
+///
+/// For example:
+///
+///     Author.annotated(with: -Author.books.count)
+public prefix func - <RowDecoder>(aggregate: AssociationAggregate<RowDecoder>) -> AssociationAggregate<RowDecoder> {
+    aggregate.map { -$0 }
+}
+
+/// Returns an aggregate that sums two aggregates with the `+` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count + Author.paintings.count)
+public func + <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: +)
+}
+
+/// Returns an aggregate that sums an aggregate with the `+` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count + 1)
+public func + <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 + rhs }
+}
+
+/// Returns an aggregate that sums an aggregate with the `+` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: 1 + Author.books.count)
+public func + <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs + $0 }
+}
+
+/// Returns an aggregate that substracts two aggregates with the `-` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count - Author.paintings.count)
+public func - <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: -)
+}
+
+/// Returns an aggregate that substracts an aggregate with the `-` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count - 1)
+public func - <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 - rhs }
+}
+
+/// Returns an aggregate that substracts an aggregate with the `-` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: 1 - Author.books.count)
+public func - <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs - $0 }
+}
+
+/// Returns an aggregate that multiplies two aggregates with the `*` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count * Author.paintings.count)
+public func * <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: *)
+}
+
+/// Returns an aggregate that substracts an aggregate with the `*` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count * 2)
+public func * <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 * rhs }
+}
+
+/// Returns an aggregate that substracts an aggregate with the `*` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: 2 * Author.books.count)
+public func * <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs * $0 }
+}
+
+/// Returns an aggregate that multiplies two aggregates with the `/` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count / Author.paintings.count)
+public func / <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    combine(lhs, rhs, with: /)
+}
+
+/// Returns an aggregate that substracts an aggregate with the `/` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: Author.books.count / 2)
+public func / <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
+-> AssociationAggregate<RowDecoder>
+{
+    lhs.map { $0 / rhs }
+}
+
+/// Returns an aggregate that substracts an aggregate with the `/` SQL operator.
+///
+/// For example:
+///
+///     Author.annotated(with: 2 / Author.books.count)
+public func / <RowDecoder>(
+    lhs: SQLExpressible,
+    rhs: AssociationAggregate<RowDecoder>)
+-> AssociationAggregate<RowDecoder>
+{
+    rhs.map { lhs / $0 }
 }
 
 // MARK: - IFNULL(...)
 
-extension AssociationAggregate {
-    /// The `IFNULL` SQL function.
-    ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Team.annotated(with: Team.players.min(Column("score")) ?? 0)
-    /// ```
-    ///
-    /// The returned aggregate has the same key as the input.
-    public static func ?? (lhs: Self, rhs: some SQLExpressible) -> Self {
-        lhs
-            .map { $0 ?? rhs }
-            .with { $0.key = lhs.key } // Preserve key
-    }
-}
-
-// MARK: - ABS(...)
-
-/// The `ABS` SQL function.
-public func abs<RowDecoder>(_ aggregate: AssociationAggregate<RowDecoder>)
+/// Returns an aggregate that evaluates the `IFNULL` SQL function.
+///
+///     Team.annotated(with: Team.players.min(Column("score")) ?? 0)
+public func ?? <RowDecoder>(
+    lhs: AssociationAggregate<RowDecoder>,
+    rhs: SQLExpressible)
 -> AssociationAggregate<RowDecoder>
 {
-    aggregate.map(abs)
+    lhs
+        .map { $0 ?? rhs }
+        .with { $0.key = lhs.key } // Preserve key
 }
 
-// MARK: - LENGTH(...)
-
-/// The `LENGTH` SQL function.
-public func length<RowDecoder>(_ aggregate: AssociationAggregate<RowDecoder>)
--> AssociationAggregate<RowDecoder>
-{
-    aggregate.map(length)
-}
+// TODO: add support for ABS(aggregate)
+// TODO: add support for LENGTH(aggregate)

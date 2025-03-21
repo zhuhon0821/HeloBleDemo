@@ -1,403 +1,179 @@
-/// The `ABS` SQL function.
+// MARK: - ABS(...)
+
+/// Returns an expression that evaluates the `ABS` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // ABS(amount)
-/// abs(Column("amount"))
-/// ```
-public func abs(_ value: some SQLSpecificExpressible) -> SQLExpression {
+///     // ABS(amount)
+///     abs(Column("amount"))
+public func abs(_ value: SQLSpecificExpressible) -> SQLExpression {
     .function("ABS", [value.sqlExpression])
 }
 
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-/// The `AVG` SQL function.
+
+// MARK: - AVG(...)
+
+/// Returns an expression that evaluates the `AVG` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // AVG(length)
-/// average(Column("length"))
-/// ```
-public func average(
-    _ value: some SQLSpecificExpressible,
-    filter: (any SQLSpecificExpressible)? = nil)
--> SQLExpression {
-    .aggregateFunction("AVG", [value.sqlExpression], filter: filter?.sqlExpression)
-}
-#else
-/// The `AVG` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // AVG(length) FILTER (WHERE length > 0)
-/// average(Column("length"), filter: Column("length") > 0)
-/// ```
-@available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
-public func average(
-    _ value: some SQLSpecificExpressible,
-    filter: some SQLSpecificExpressible)
--> SQLExpression {
-    .aggregateFunction(
-        "AVG", [value.sqlExpression],
-        filter: filter.sqlExpression)
+///     // AVG(length)
+///     average(Column("length"))
+public func average(_ value: SQLSpecificExpressible) -> SQLExpression {
+    .aggregate("AVG", [value.sqlExpression])
 }
 
-/// The `AVG` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // AVG(length)
-/// average(Column("length"))
-/// ```
-public func average(_ value: some SQLSpecificExpressible) -> SQLExpression {
-    .aggregateFunction("AVG", [value.sqlExpression])
-}
-#endif
 
-/// The `COUNT` SQL function.
+// MARK: - COUNT(...)
+
+/// Returns an expression that evaluates the `COUNT` SQL function.
 ///
-/// For example:
+///     // COUNT(email)
+///     count(Column("email"))
 ///
-/// ```swift
-/// // COUNT(email)
-/// count(Column("email"))
-/// ```
-public func count(_ counted: some SQLSpecificExpressible) -> SQLExpression {
+/// :nodoc:
+@available(*, deprecated)
+public func count(_ counted: SQLSelectable) -> SQLExpression {
+    counted.sqlSelection.countExpression
+}
+
+/// Returns an expression that evaluates the `COUNT` SQL function.
+///
+///     // COUNT(email)
+///     count(Column("email"))
+public func count(_ counted: SQLSpecificExpressible) -> SQLExpression {
     .count(counted.sqlExpression)
 }
 
-/// The `COUNT(DISTINCT)` SQL function.
+
+// MARK: - COUNT(DISTINCT ...)
+
+/// Returns an expression that evaluates the `COUNT(DISTINCT)` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // COUNT(DISTINCT email)
-/// count(distinct: Column("email"))
-/// ```
-public func count(distinct value: some SQLSpecificExpressible) -> SQLExpression {
+///     // COUNT(DISTINCT email)
+///     count(distinct: Column("email"))
+public func count(distinct value: SQLSpecificExpressible) -> SQLExpression {
     .countDistinct(value.sqlExpression)
 }
 
-extension SQLSpecificExpressible {
-    /// The `IFNULL` SQL function.
-    ///
-    /// For example:
-    ///
-    /// ```swift
-    /// // IFNULL(name, 'Anonymous')
-    /// Column("name") ?? "Anonymous"
-    /// ```
-    public static func ?? (lhs: Self, rhs: some SQLExpressible) -> SQLExpression {
-        .function("IFNULL", [lhs.sqlExpression, rhs.sqlExpression])
-    }
+
+// MARK: - IFNULL(...)
+
+/// Returns an expression that evaluates the `IFNULL` SQL function.
+///
+///     // IFNULL(name, 'Anonymous')
+///     Column("name") ?? "Anonymous"
+public func ?? (lhs: SQLSpecificExpressible, rhs: SQLExpressible) -> SQLExpression {
+    .function("IFNULL", [lhs.sqlExpression, rhs.sqlExpression])
 }
 
-/// The `LENGTH` SQL function.
+
+// MARK: - LENGTH(...)
+
+/// Returns an expression that evaluates the `LENGTH` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // LENGTH(name)
-/// length(Column("name"))
-/// ```
-public func length(_ value: some SQLSpecificExpressible) -> SQLExpression {
+///     // LENGTH(name)
+///     length(Column("name"))
+public func length(_ value: SQLSpecificExpressible) -> SQLExpression {
     .function("LENGTH", [value.sqlExpression])
 }
 
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-/// The `MAX` SQL function.
+
+// MARK: - MAX(...)
+
+/// Returns an expression that evaluates the `MAX` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // MAX(score)
-/// max(Column("score"))
-/// ```
-public func max(
-    _ value: some SQLSpecificExpressible,
-    filter: (any SQLSpecificExpressible)? = nil)
--> SQLExpression {
-    .aggregateFunction("MAX", [value.sqlExpression], filter: filter?.sqlExpression)
-}
-#else
-/// The `MAX` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // MAX(score) FILTER (WHERE score < 0)
-/// max(Column("score"), filter: Column("score") < 0)
-/// ```
-@available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
-public func max(
-    _ value: some SQLSpecificExpressible,
-    filter: some SQLSpecificExpressible)
--> SQLExpression {
-    .aggregateFunction("MAX", [value.sqlExpression], filter: filter.sqlExpression)
+///     // MAX(score)
+///     max(Column("score"))
+public func max(_ value: SQLSpecificExpressible) -> SQLExpression {
+    .aggregate("MAX", [value.sqlExpression])
 }
 
-/// The `MAX` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // MAX(score)
-/// max(Column("score"))
-/// ```
-public func max(_ value: some SQLSpecificExpressible) -> SQLExpression {
-    .aggregateFunction("MAX", [value.sqlExpression])
-}
-#endif
 
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-/// The `MIN` SQL function.
+// MARK: - MIN(...)
+
+/// Returns an expression that evaluates the `MIN` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // MIN(score)
-/// min(Column("score"))
-/// ```
-public func min(
-    _ value: some SQLSpecificExpressible,
-    filter: (any SQLSpecificExpressible)? = nil) 
--> SQLExpression {
-    .aggregateFunction("MIN", [value.sqlExpression], filter: filter?.sqlExpression)
-}
-#else
-/// The `MIN` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // MIN(score) FILTER (WHERE score > 0)
-/// min(Column("score"), filter: Column("score") > 0)
-/// ```
-@available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
-public func min(
-    _ value: some SQLSpecificExpressible,
-    filter: some SQLSpecificExpressible)
--> SQLExpression {
-    .aggregateFunction("MIN", [value.sqlExpression], filter: filter.sqlExpression)
+///     // MIN(score)
+///     min(Column("score"))
+public func min(_ value: SQLSpecificExpressible) -> SQLExpression {
+    .aggregate("MIN", [value.sqlExpression])
 }
 
-/// The `MIN` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // MIN(score)
-/// min(Column("score"))
-/// ```
-public func min(_ value: some SQLSpecificExpressible) -> SQLExpression {
-    .aggregateFunction("MIN", [value.sqlExpression])
-}
-#endif
 
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-/// The `SUM` SQL function.
+// MARK: - SUM(...)
+
+/// Returns an expression that evaluates the `SUM` SQL function.
 ///
-/// For example:
-///
-/// ```swift
-/// // SUM(amount)
-/// sum(Column("amount"))
-/// ```
-///
-/// See also ``total(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-public func sum(
-    _ value: some SQLSpecificExpressible,
-    orderBy ordering: (any SQLOrderingTerm)? = nil,
-    filter: (any SQLSpecificExpressible)? = nil)
--> SQLExpression
-{
-    .aggregateFunction(
-        "SUM", [value.sqlExpression],
-        ordering: ordering?.sqlOrdering,
-        filter: filter?.sqlExpression)
-}
-#else
-/// The `SUM` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // SUM(amount) FILTER (WHERE amount > 0)
-/// sum(Column("amount"), filter: Column("amount") > 0)
-/// ```
-///
-/// See also ``total(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-@available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
-public func sum(
-    _ value: some SQLSpecificExpressible,
-    filter: some SQLSpecificExpressible)
--> SQLExpression {
-    .aggregateFunction(
-        "SUM", [value.sqlExpression],
-        filter: filter.sqlExpression)
+///     // SUM(amount)
+///     sum(Column("amount"))
+public func sum(_ value: SQLSpecificExpressible) -> SQLExpression {
+    .aggregate("SUM", [value.sqlExpression])
 }
 
-/// The `SUM` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // SUM(amount)
-/// sum(Column("amount"))
-/// ```
-///
-/// See also ``total(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-public func sum(_ value: some SQLSpecificExpressible) -> SQLExpression {
-    .aggregateFunction("SUM", [value.sqlExpression])
-}
-#endif
-
-#if GRDBCUSTOMSQLITE || GRDBCIPHER
-/// The `TOTAL` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // TOTAL(amount)
-/// total(Column("amount"))
-/// ```
-///
-/// See also ``sum(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-public func total(
-    _ value: some SQLSpecificExpressible,
-    orderBy ordering: (any SQLOrderingTerm)? = nil,
-    filter: (any SQLSpecificExpressible)? = nil)
--> SQLExpression
-{
-    .aggregateFunction(
-        "TOTAL", [value.sqlExpression],
-        ordering: ordering?.sqlOrdering,
-        filter: filter?.sqlExpression)
-}
-#else
-/// The `TOTAL` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // TOTAL(amount) FILTER (WHERE amount > 0)
-/// total(Column("amount"), filter: Column("amount") > 0)
-/// ```
-///
-/// See also ``total(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-@available(iOS 14, macOS 10.16, tvOS 14, watchOS 7, *) // SQLite 3.30+
-public func total(
-    _ value: some SQLSpecificExpressible,
-    filter: some SQLSpecificExpressible)
--> SQLExpression {
-    .aggregateFunction(
-        "TOTAL", [value.sqlExpression],
-        filter: filter.sqlExpression)
-}
-
-/// The `TOTAL` SQL function.
-///
-/// For example:
-///
-/// ```swift
-/// // TOTAL(amount)
-/// total(Column("amount"))
-/// ```
-///
-/// See also ``sum(_:)``.
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_aggfunc.html#sumunc>.
-public func total(_ value: some SQLSpecificExpressible) -> SQLExpression {
-    .aggregateFunction("TOTAL", [value.sqlExpression])
-}
-#endif
 
 // MARK: - String functions
 
+/// :nodoc:
 extension SQLSpecificExpressible {
-    /// An SQL expression that calls the Foundation
-    /// `String.capitalized` property.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// capitalized String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").capitalized
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.capitalized)
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
     public var capitalized: SQLExpression {
         DatabaseFunction.capitalize(sqlExpression)
     }
     
-    /// An SQL expression that calls the Swift
-    /// `String.lowercased()` method.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// lowercased String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").lowercased
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.lowercased())
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
     public var lowercased: SQLExpression {
         DatabaseFunction.lowercase(sqlExpression)
     }
     
-    /// An SQL expression that calls the Swift
-    /// `String.uppercased()` method.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// uppercased String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").uppercased
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.uppercased())
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
     public var uppercased: SQLExpression {
         DatabaseFunction.uppercase(sqlExpression)
     }
 }
 
+/// :nodoc:
 extension SQLSpecificExpressible {
-    /// An SQL expression that calls the Foundation
-    /// `String.localizedCapitalized` property.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// localizedCapitalized String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").localizedCapitalized
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.localizedCapitalized)
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
+    @available(OSX 10.11, watchOS 3.0, *)
     public var localizedCapitalized: SQLExpression {
         DatabaseFunction.localizedCapitalize(sqlExpression)
     }
     
-    /// An SQL expression that calls the Foundation
-    /// `String.localizedLowercase` property.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// localizedLowercased String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").localizedLowercased
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.localizedLowercased)
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
+    @available(OSX 10.11, watchOS 3.0, *)
     public var localizedLowercased: SQLExpression {
         DatabaseFunction.localizedLowercase(sqlExpression)
     }
     
-    /// An SQL expression that calls the Foundation
-    /// `String.localizedUppercase` property.
+    /// Returns an SQL expression that applies the Swift's built-in
+    /// localizedUppercased String property. It is NULL for non-String arguments.
     ///
-    /// For example:
-    ///
-    /// ```swift
-    /// Column("name").localizedUppercased
-    /// ```
+    ///     let nameColumn = Column("name")
+    ///     let request = Player.select(nameColumn.localizedUppercased)
+    ///     let names = try String.fetchAll(dbQueue, request)   // [String]
+    @available(OSX 10.11, watchOS 3.0, *)
     public var localizedUppercased: SQLExpression {
         DatabaseFunction.localizedUppercase(sqlExpression)
     }
@@ -405,9 +181,10 @@ extension SQLSpecificExpressible {
 
 // MARK: - Date functions
 
-/// A date modifier for SQLite date functions.
+/// A date modifier for SQLite date functions such as `julianDay(_:_:)` and
+/// `dateTime(_:_:)`.
 ///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_datefunc.html>
+/// For more information, see <https://www.sqlite.org/lang_datefunc.html>
 public enum SQLDateModifier: SQLSpecificExpressible {
     /// Adds the specified amount of seconds
     case second(Double)
@@ -484,38 +261,32 @@ public enum SQLDateModifier: SQLSpecificExpressible {
     }
 }
 
-/// The `JULIANDAY` SQL function.
+// MARK: JULIANDAY(...)
+
+/// Returns an expression that evaluates the `JULIANDAY` SQL function.
 ///
-/// For example:
+///     // JULIANDAY(date)
+///     julianDay(Column("date"))
 ///
-/// ```swift
-/// // JULIANDAY(date)
-/// julianDay(Column("date"))
+///     // JULIANDAY(date, '1 days')
+///     julianDay(Column("date"), .day(1))
 ///
-/// // JULIANDAY(date, '1 days')
-/// julianDay(Column("date"), .day(1))
-/// ```
-///
-/// Related SQLite documentation: <https://www.sqlite.org/lang_datefunc.html>
-public func julianDay(_ value: some SQLSpecificExpressible, _ modifiers: SQLDateModifier...) -> SQLExpression {
+/// For more information, see <https://www.sqlite.org/lang_datefunc.html>
+public func julianDay(_ value: SQLSpecificExpressible, _ modifiers: SQLDateModifier...) -> SQLExpression {
     .function("JULIANDAY", [value.sqlExpression] + modifiers.map(\.sqlExpression))
 }
 
 // MARK: DATETIME(...)
 
-/// The `DATETIME` SQL function.
+/// Returns an expression that evaluates the `DATETIME` SQL function.
 ///
-/// For example:
+///     // DATETIME(date)
+///     dateTime(Column("date"))
 ///
-/// ```swift
-/// // DATETIME(date)
-/// dateTime(Column("date"))
+///     // DATETIME(date, '1 days')
+///     dateTime(Column("date"), .day(1))
 ///
-/// // DATETIME(date, '1 days')
-/// dateTime(Column("date"), .day(1))
-/// ```
-///
-/// Related SQLite documentation:<https://www.sqlite.org/lang_datefunc.html>
-public func dateTime(_ value: some SQLSpecificExpressible, _ modifiers: SQLDateModifier...) -> SQLExpression {
+/// For more information, see <https://www.sqlite.org/lang_datefunc.html>
+public func dateTime(_ value: SQLSpecificExpressible, _ modifiers: SQLDateModifier...) -> SQLExpression {
     .function("DATETIME", [value.sqlExpression] + modifiers.map(\.sqlExpression))
 }

@@ -1,17 +1,19 @@
 PODS:
   - Alamofire (5.9.1)
-  - GRDB.swift (6.24.1):
-    - GRDB.swift/standard (= 6.24.1)
-  - GRDB.swift/standard (6.24.1)
-  - HeloBleLib (1.0.3):
-    - GRDB.swift
-    - SwiftProtobuf
+  - GRDB.swift (5.11.0):
+    - GRDB.swift/standard (= 5.11.0)
+  - GRDB.swift/standard (5.11.0)
+  - HeloBleLib (1.0.4):
+    - GRDB.swift (~> 5.11.0)
+    - SwiftProtobuf (~> 1.26.0)
+    - SwiftyBeaver
   - SnapKit (5.7.1)
   - SwiftProtobuf (1.26.0)
+  - SwiftyBeaver (1.9.5)
 
 DEPENDENCIES:
   - Alamofire
-  - HeloBleLib (from `https://github.com/zhuhon0821/HeloBleLib.git`)
+  - "HeloBleLib (from `git@github.com:zhuhon0821/HeloBleLib.git`)"
   - SnapKit
 
 SPEC REPOS:
@@ -20,23 +22,25 @@ SPEC REPOS:
     - GRDB.swift
     - SnapKit
     - SwiftProtobuf
+    - SwiftyBeaver
 
 EXTERNAL SOURCES:
   HeloBleLib:
-    :git: https://github.com/zhuhon0821/HeloBleLib.git
+    :git: "git@github.com:zhuhon0821/HeloBleLib.git"
 
 CHECKOUT OPTIONS:
   HeloBleLib:
-    :commit: 848240f06d3eeb20b1ccbf75f654923fe46b2b47
-    :git: https://github.com/zhuhon0821/HeloBleLib.git
+    :commit: 2c6fd10c0e4b60a5348ffd561d086cf627df31b4
+    :git: "git@github.com:zhuhon0821/HeloBleLib.git"
 
 SPEC CHECKSUMS:
   Alamofire: f36a35757af4587d8e4f4bfa223ad10be2422b8c
-  GRDB.swift: 136dcb5d8dddca50aae3ba7d77475f79e7232cd8
-  HeloBleLib: dce44f4e9a589fd39e1dd42c4937fcc7e90157d6
+  GRDB.swift: 9a33d9680cd3c870c82f48a6cbc73d3cfbb235eb
+  HeloBleLib: ecfeb7a33fb6966adbd7468216ad2f116f3bb6ce
   SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
   SwiftProtobuf: 5e8349171e7c2f88f5b9e683cb3cb79d1dc780b3
+  SwiftyBeaver: 84069991dd5dca07d7069100985badaca7f0ce82
 
-PODFILE CHECKSUM: 860e81a5f3f087b2582e0c3c1108bc3c7701232f
+PODFILE CHECKSUM: 037a90caa1e790525720dc8280eef32c03c3f9d0
 
 COCOAPODS: 1.15.2
